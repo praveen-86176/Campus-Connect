@@ -30,7 +30,7 @@ export const EventDetailsScreen: React.FC = () => {
     return null;
   }
 
-  const qrPayload = JSON.stringify({ eventId: event.id, userId: mockUser.id, timestamp: existingRsvp?.timestamp ?? Date.now() });
+  const qrPayload = JSON.stringify({ eventId: event.id, userId: mockUser.id, timestamp: existingRsvp?.timestamp ?? new Date().toISOString() });
 
   return (
     <View style={styles.container}>

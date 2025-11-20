@@ -1,4 +1,4 @@
-import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, Platform } from 'react-native';
 import { Colors } from '../constants/colors';
 
 type Props = {
@@ -22,10 +22,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    ...Platform.select({
+      web: { boxShadow: '0px 6px 12px rgba(0,0,0,0.15)' },
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+    }),
     elevation: 3,
   },
   label: {
