@@ -3,7 +3,6 @@ import { Alert } from 'react-native';
 import { dataService } from '../services/dataService';
 import { Club, Event, RSVP } from '../types';
 import { storage } from '../services/storage';
-import { scheduleEventReminders } from '../services/notifications';
 import { mockClubs, mockEvents } from '../constants/mockData';
 
 const RSVPS_KEY = 'rsvps';
@@ -63,10 +62,6 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const nextRsvps = [...rsvps.filter((item) => item.eventId !== rsvp.eventId || item.userId !== rsvp.userId), rsvp];
       setRsvps(nextRsvps);
       await storage.set(RSVPS_KEY, nextRsvps);
-      const event = events.find((e) => e.id === rsvp.eventId);
-      if (event) {
-        await scheduleEventReminders(event, rsvp.userId);
-      }
     } catch (error) {
       Alert.alert('Error', 'Unable to save RSVP right now.');
     }

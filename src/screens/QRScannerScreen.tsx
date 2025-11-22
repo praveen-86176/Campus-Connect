@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import { useCampusData } from '../context/CampusDataContext';
 import { Colors } from '../constants/colors';
 
 export const QRScannerScreen: React.FC = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [hasScanned, setHasScanned] = useState(false);
-  const { rsvps, getEventById, upsertRsvp } = useCampusData();
 
   useEffect(() => {
     if (!permission) {
@@ -15,46 +13,12 @@ export const QRScannerScreen: React.FC = () => {
     }
   }, [permission, requestPermission]);
 
-  const handleBarcodeScanned = async ({ data }: BarcodeScanningResult) => {
+  const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
     if (hasScanned) {
       return;
     }
     setHasScanned(true);
-    try {
-      const parsed = JSON.parse(data as string);
-      const eventId = parsed?.eventId;
-      const userId = parsed?.userId;
-      const timestamp = parsed?.timestamp;
-
-      if (!eventId || !userId || !timestamp) {
-        Alert.alert('Invalid QR', 'Missing required fields.');
-        setHasScanned(false);
-        return;
-      }
-
-      const event = getEventById(eventId);
-      if (!event) {
-        Alert.alert('Unknown event', 'This event does not exist.');
-        setHasScanned(false);
-        return;
-      }
-
-      const existing = rsvps.find((r) => r.eventId === eventId && r.userId === userId);
-      if (!existing) {
-        Alert.alert('Not on RSVP list', 'No RSVP found for this QR.');
-        setHasScanned(false);
-        return;
-      }
-
-      const updated = { ...existing, attended: true };
-      await upsertRsvp(updated);
-      Alert.alert('Attendance marked', 'Check-in recorded.', [
-        { text: 'Scan Again', onPress: () => setHasScanned(false) },
-      ]);
-    } catch (e) {
-      Alert.alert('Invalid QR', 'Unable to decode this QR.');
-      setHasScanned(false);
-    }
+    Alert.alert('QR scanned', data, [{ text: 'Scan Again', onPress: () => setHasScanned(false) }]);
   };
 
   if (!permission) {

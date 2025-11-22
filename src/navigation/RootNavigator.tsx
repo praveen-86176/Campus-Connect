@@ -8,13 +8,12 @@ import { QRScannerScreen } from '../screens/QRScannerScreen';
 import { RSVPFormScreen } from '../screens/RSVPFormScreen';
 import { MainTabs } from './MainTabs';
 import { RootStackParamList } from './types';
-import { navigationRef } from './navigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator = () => (
   <CampusDataProvider>
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer>
       <Stack.Navigator>
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen
