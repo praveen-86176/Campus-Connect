@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { memo, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Event } from '../types';
 
@@ -8,16 +8,30 @@ type Props = {
   onPress: (event: Event) => void;
 };
 
-const EventCardComponent: React.FC<Props> = ({ event, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={() => onPress(event)}>
-    <View style={styles.headerRow}>
-      <Text style={styles.title}>{event.title}</Text>
-      <Text style={styles.meta}>{event.rsvpCount}/{event.capacity}</Text>
-    </View>
-    <Text style={styles.detail}>{event.date} • {event.time}</Text>
-    <Text style={styles.location}>{event.location}</Text>
-  </TouchableOpacity>
-);
+const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  };
+
+  return (
+    <TouchableOpacity onPress={() => onPress(event)} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+      <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>{event.title}</Text>
+          <Text style={styles.meta}>{event.rsvpCount}/{event.capacity}</Text>
+        </View>
+        <Text style={styles.detail}>{event.date} • {event.time}</Text>
+        <Text style={styles.location}>{event.location}</Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
 
 export const EventCard = memo(EventCardComponent);
 

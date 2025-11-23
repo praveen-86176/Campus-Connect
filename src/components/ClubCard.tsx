@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { memo, useRef } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Club } from '../types';
 
@@ -8,16 +8,35 @@ type Props = {
   onPress: (club: Club) => void;
 };
 
-const ClubCardComponent: React.FC<Props> = ({ club, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={() => onPress(club)} activeOpacity={0.9}>
-    <Image source={{ uri: club.logo }} style={styles.logo} />
-    <View style={styles.content}>
-      <Text style={styles.title}>{club.name}</Text>
-      <Text style={styles.description}>{club.description}</Text>
-      <Text style={styles.meta}>{club.memberCount} members</Text>
-    </View>
-  </TouchableOpacity>
-);
+const ClubCardComponent: React.FC<Props> = ({ club, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onPress(club)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+    >
+      <Animated.View style={[styles.card, { transform: [{ scale }] }] }>
+        <Image source={{ uri: club.logo }} style={styles.logo} />
+        <View style={styles.content}>
+          <Text style={styles.title}>{club.name}</Text>
+          <Text style={styles.description}>{club.description}</Text>
+          <Text style={styles.meta}>{club.memberCount} members</Text>
+        </View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
 
 export const ClubCard = memo(ClubCardComponent);
 

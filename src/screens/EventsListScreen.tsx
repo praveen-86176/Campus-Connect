@@ -83,12 +83,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   filterChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: '#fff',
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: Colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   filterTextActive: {
     color: '#fff',
