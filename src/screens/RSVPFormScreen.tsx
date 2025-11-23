@@ -21,37 +21,10 @@ export const RSVPFormScreen: React.FC = () => {
   const [email, setEmail] = useState(existingRsvp?.email ?? mockUser.email);
   const [phone, setPhone] = useState(existingRsvp?.phone ?? '');
   const [saving, setSaving] = useState(false);
-  const [touched, setTouched] = useState<{ name: boolean; email: boolean; phone: boolean }>({ name: false, email: false, phone: false });
-
-  const validateName = (value: string) => {
-    const v = value.trim();
-    if (v.length < 2) return 'Enter your full name';
-    if (!/^[A-Za-z][A-Za-z ]+$/.test(v)) return 'Use letters and spaces only';
-    return '';
-  };
-
-  const validateEmail = (value: string) => {
-    const v = value.trim();
-    if (!v) return 'Email is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Enter a valid email';
-    return '';
-  };
-
-  const validatePhone = (value: string) => {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length === 0) return 'Phone is required';
-    if (digits.length < 10 || digits.length > 15) return 'Enter 10–15 digits';
-    return '';
-  };
-
-  const nameError = validateName(fullName);
-  const emailError = validateEmail(email);
-  const phoneError = validatePhone(phone);
-  const isValid = !nameError && !emailError && !phoneError;
 
   const handleSubmit = async () => {
-    if (!isValid) {
-      Alert.alert('Missing info', 'Please correct the highlighted fields.');
+    if (!fullName.trim() || !email.trim() || !phone.trim()) {
+      Alert.alert('Missing info', 'Please fill all fields to continue.');
       return;
     }
 
@@ -86,32 +59,26 @@ export const RSVPFormScreen: React.FC = () => {
 
       <TextInput
         placeholder="Full Name"
-        style={[styles.input, touched.name && nameError ? styles.inputError : undefined]}
+        style={styles.input}
         value={fullName}
-        onChangeText={(t) => setFullName(t)}
-        onBlur={() => setTouched((prev) => ({ ...prev, name: true }))}
+        onChangeText={setFullName}
       />
-      {touched.name && !!nameError && <Text style={styles.errorText}>{nameError}</Text>}
       <TextInput
         placeholder="Email"
         keyboardType="email-address"
-        style={[styles.input, touched.email && emailError ? styles.inputError : undefined]}
+        style={styles.input}
         value={email}
-        onChangeText={(t) => setEmail(t)}
-        onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+        onChangeText={setEmail}
       />
-      {touched.email && !!emailError && <Text style={styles.errorText}>{emailError}</Text>}
       <TextInput
         placeholder="Phone Number"
         keyboardType="phone-pad"
-        style={[styles.input, touched.phone && phoneError ? styles.inputError : undefined]}
+        style={styles.input}
         value={phone}
-        onChangeText={(t) => setPhone(t)}
-        onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
+        onChangeText={setPhone}
       />
-      {touched.phone && !!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
 
-      <TouchableOpacity style={[styles.button, (saving || !isValid) && styles.buttonDisabled]} onPress={handleSubmit} disabled={saving || !isValid}>
+      <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={handleSubmit} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Submit RSVP'}</Text>
       </TouchableOpacity>
     </View>
@@ -138,9 +105,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  inputError: {
-    borderColor: Colors.danger,
-  },
   button: {
     backgroundColor: Colors.primary,
     borderRadius: 16,
@@ -155,11 +119,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  errorText: {
-    color: Colors.danger,
-    marginTop: -8,
-    marginBottom: 8,
-    fontSize: 12,
   },
 });

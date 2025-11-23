@@ -11,7 +11,7 @@ type NavProps = NativeStackNavigationProp<RootStackParamList>;
 
 export const MyRsvpsScreen: React.FC = () => {
   const navigation = useNavigation<NavProps>();
-  const { rsvps, getEventById } = useCampusData();
+  const { rsvps, getEventById, getUserAttendanceStatus } = useCampusData();
 
   const renderRow = ({ item }: { item: typeof rsvps[number] }) => {
     const event = getEventById(item.eventId);
@@ -23,9 +23,15 @@ export const MyRsvpsScreen: React.FC = () => {
       <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}>
         <Text style={styles.title}>{event.title}</Text>
         <Text style={styles.detail}>{formatLabel(event.date, event.time)}</Text>
-        <Text style={[styles.status, item.attended ? styles.attended : styles.pending]}>
-          {item.attended ? 'Attended' : 'Upcoming'}
-        </Text>
+        {(() => {
+          const status = getUserAttendanceStatus(event.id, item.userId);
+          const attended = status === 'checked_out';
+          return (
+            <Text style={[styles.status, attended ? styles.attended : styles.pending]}>
+              {attended ? 'Attended' : 'Upcoming'}
+            </Text>
+          );
+        })()}
       </TouchableOpacity>
     );
   };

@@ -1,17 +1,19 @@
 import { mockClubs, mockEvents, mockRsvps } from '../constants/mockData';
-import { Club, Event, RSVP } from '../types';
+import { Club, Event, RSVP, AttendanceRecord } from '../types';
 import { storage } from './storage';
 
 const CLUBS_KEY = 'clubs';
 const EVENTS_KEY = 'events';
 const RSVPS_KEY = 'rsvps';
+const ATTENDANCE_KEY = 'attendance';
 
 export const dataService = {
   async init(): Promise<void> {
-    const [clubs, events, rsvps] = await Promise.all([
+    const [clubs, events, rsvps, attendance] = await Promise.all([
       storage.get<Club[]>(CLUBS_KEY),
       storage.get<Event[]>(EVENTS_KEY),
       storage.get<RSVP[]>(RSVPS_KEY),
+      storage.get<AttendanceRecord[]>(ATTENDANCE_KEY),
     ]);
 
     if (!clubs) {
@@ -24,6 +26,10 @@ export const dataService = {
 
     if (!rsvps) {
       await storage.set(RSVPS_KEY, mockRsvps);
+    }
+
+    if (!attendance) {
+      await storage.set(ATTENDANCE_KEY, [] as AttendanceRecord[]);
     }
   },
 
@@ -41,5 +47,13 @@ export const dataService = {
 
   async saveRsvps(rsvps: RSVP[]) {
     await storage.set(RSVPS_KEY, rsvps);
+  },
+
+  async getAttendance() {
+    return (await storage.get<AttendanceRecord[]>(ATTENDANCE_KEY)) ?? [];
+  },
+
+  async saveAttendance(records: AttendanceRecord[]) {
+    await storage.set(ATTENDANCE_KEY, records);
   },
 };

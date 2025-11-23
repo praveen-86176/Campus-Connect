@@ -36,3 +36,12 @@ export type UserProfile = {
 };
 
 export type FilterType = 'upcoming' | 'past' | 'all';
+
+export type AttendanceRecord = {
+  eventId: string;
+  userId: string;
+  checkInAt?: string;
+  checkOutAt?: string;
+};
+
+export type AttendanceStatus = 'absent' | 'checked_in' | 'checked_out';

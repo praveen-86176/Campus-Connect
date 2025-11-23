@@ -12,4 +12,6 @@ export type RootStackParamList = {
   EventDetails: { eventId: string };
   RSVPForm: { eventId: string };
   QRScanner: undefined;
+  AttendanceReport: { eventId: string };
+  Certificate: { eventId: string };
 };

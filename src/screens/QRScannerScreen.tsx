@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Alert } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Colors } from '../constants/colors';
+import { useCampusData } from '../context/CampusDataContext';
 
 export const QRScannerScreen: React.FC = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [hasScanned, setHasScanned] = useState(false);
+  const { markCheckIn, markCheckOut, getUserAttendanceStatus } = useCampusData();
 
   useEffect(() => {
     if (!permission) {
@@ -13,12 +15,24 @@ export const QRScannerScreen: React.FC = () => {
     }
   }, [permission, requestPermission]);
 
-  const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
+  const handleBarcodeScanned = async ({ data }: BarcodeScanningResult) => {
     if (hasScanned) {
       return;
     }
     setHasScanned(true);
-    Alert.alert('QR scanned', data, [{ text: 'Scan Again', onPress: () => setHasScanned(false) }]);
+    try {
+      const payload = JSON.parse(data) as { eventId: string; userId: string };
+      const status = getUserAttendanceStatus(payload.eventId, payload.userId);
+      if (status === 'checked_in') {
+        await markCheckOut(payload.userId, payload.eventId);
+        Alert.alert('Checked out', 'Goodbye! See you next time.', [{ text: 'OK' }]);
+      } else {
+        await markCheckIn(payload.userId, payload.eventId);
+        Alert.alert('Checked in', 'Welcome to the event!', [{ text: 'OK' }]);
+      }
+    } catch (e) {
+      Alert.alert('Invalid QR', 'Unable to read QR data.', [{ text: 'Scan Again', onPress: () => setHasScanned(false) }]);
+    }
   };
 
   if (!permission) {
