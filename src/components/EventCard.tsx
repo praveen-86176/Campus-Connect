@@ -22,7 +22,13 @@ const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
   };
 
   return (
-    <TouchableOpacity onPress={() => onPress(event)} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+    <TouchableOpacity
+      onPress={() => onPress(event)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel={`${event.title}, ${event.date} ${event.time}, ${event.location}`}
+    >
       <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>{event.title}</Text>

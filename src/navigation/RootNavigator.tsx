@@ -1,7 +1,7 @@
 import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import { CampusDataProvider } from '../context/CampusDataContext';
 import { EventDetailsScreen } from '../screens/EventDetailsScreen';
@@ -38,19 +38,22 @@ const linking: LinkingOptions<RootStackParamList> = {
 
 export const RootNavigator = () => (
   <CampusDataProvider>
-    <NavigationContainer linking={linking}>
+    <NavigationContainer
+      linking={linking}
+      onStateChange={() => {
+        if (Platform.OS === 'web') {
+          const el = (document.activeElement as HTMLElement | null);
+          if (el && typeof el.blur === 'function') {
+            el.blur();
+          }
+        }
+      }}
+    >
       <Stack.Navigator
         screenOptions={{
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: '700' },
-          headerBackground: () => (
-            <LinearGradient
-              colors={[Colors.primary, '#6FB3F0']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ flex: 1 }}
-            />
-          ),
+          headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.primary }} />,
         }}
       >
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />

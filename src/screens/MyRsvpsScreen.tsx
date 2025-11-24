@@ -20,7 +20,12 @@ export const MyRsvpsScreen: React.FC = () => {
     }
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('EventDetails', { eventId: event.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${event.title} details`}
+      >
         <Text style={styles.title}>{event.title}</Text>
         <Text style={styles.detail}>{formatLabel(event.date, event.time)}</Text>
         {(() => {

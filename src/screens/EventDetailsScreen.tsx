@@ -42,11 +42,21 @@ export const EventDetailsScreen: React.FC = () => {
       <Text style={styles.location}>{event.location}</Text>
       <Text style={styles.description}>{event.description}</Text>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('RSVPForm', { eventId: event.id })}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate('RSVPForm', { eventId: event.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`RSVP for ${event.title}`}
+      >
         <Text style={styles.buttonText}>{existingRsvp ? 'Update RSVP' : 'RSVP Now'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('QRScanner')}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate('QRScanner')}
+        accessibilityRole="button"
+        accessibilityLabel="Scan QR for attendance"
+      >
         <Text style={styles.buttonText}>Scan QR for Attendance</Text>
       </TouchableOpacity>
 
@@ -57,7 +67,12 @@ export const EventDetailsScreen: React.FC = () => {
         <Text style={styles.stat}>Rate: {analytics.attendanceRate}%</Text>
       </View>
 
-      <TouchableOpacity style={[styles.button, { marginBottom: 12 }]} onPress={() => navigation.navigate('AttendanceReport', { eventId: event.id })}>
+      <TouchableOpacity
+        style={[styles.button, { marginBottom: 12 }]}
+        onPress={() => navigation.navigate('AttendanceReport', { eventId: event.id })}
+        accessibilityRole="button"
+        accessibilityLabel="View attendance report"
+      >
         <Text style={styles.buttonText}>Attendance Report</Text>
       </TouchableOpacity>
 
@@ -67,7 +82,12 @@ export const EventDetailsScreen: React.FC = () => {
           <QRCode value={qrPayload} size={180} />
           <Text style={styles.qrNote}>Show this at the event entrance.</Text>
           {attendanceStatus === 'checked_out' ? (
-            <TouchableOpacity style={[styles.button, { marginTop: 16 }]} onPress={() => navigation.navigate('Certificate', { eventId: event.id })}>
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 16 }]}
+              onPress={() => navigation.navigate('Certificate', { eventId: event.id })}
+              accessibilityRole="button"
+              accessibilityLabel="View certificate"
+            >
               <Text style={styles.buttonText}>View Certificate</Text>
             </TouchableOpacity>
           ) : null}

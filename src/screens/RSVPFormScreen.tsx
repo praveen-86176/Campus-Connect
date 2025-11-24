@@ -2,6 +2,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { z } from 'zod';
 import { Colors } from '../constants/colors';
 import { mockUser } from '../constants/mockData';
 import { useCampusData } from '../context/CampusDataContext';
@@ -22,9 +23,17 @@ export const RSVPFormScreen: React.FC = () => {
   const [phone, setPhone] = useState(existingRsvp?.phone ?? '');
   const [saving, setSaving] = useState(false);
 
+  const rsvpSchema = z.object({
+    fullName: z.string().min(2, 'Name must be at least 2 characters'),
+    email: z.string().email('Invalid email address'),
+    phone: z.string().regex(/^[0-9]{10}$/, 'Phone must be 10 digits'),
+  });
+
   const handleSubmit = async () => {
-    if (!fullName.trim() || !email.trim() || !phone.trim()) {
-      Alert.alert('Missing info', 'Please fill all fields to continue.');
+    const result = rsvpSchema.safeParse({ fullName, email, phone });
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message ?? 'Invalid form data';
+      Alert.alert('Invalid details', msg);
       return;
     }
 

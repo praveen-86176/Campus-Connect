@@ -8,7 +8,13 @@ type Props = {
 };
 
 export const QuickActionButton: React.FC<Props> = ({ label, onPress, style }) => (
-  <TouchableOpacity style={[styles.button, style]} onPress={onPress} activeOpacity={0.85}>
+  <TouchableOpacity
+    style={[styles.button, style]}
+    onPress={onPress}
+    activeOpacity={0.85}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
     <Text style={styles.label}>{label}</Text>
   </TouchableOpacity>
 );
