@@ -19,6 +19,8 @@ export const MyRsvpsScreen: React.FC = () => {
       return null;
     }
 
+    const status = getUserAttendanceStatus(event.id, item.userId);
+    const attended = status === 'checked_out';
     return (
       <TouchableOpacity
         style={styles.card}
@@ -28,15 +30,9 @@ export const MyRsvpsScreen: React.FC = () => {
       >
         <Text style={styles.title}>{event.title}</Text>
         <Text style={styles.detail}>{formatLabel(event.date, event.time)}</Text>
-        {(() => {
-          const status = getUserAttendanceStatus(event.id, item.userId);
-          const attended = status === 'checked_out';
-          return (
-            <Text style={[styles.status, attended ? styles.attended : styles.pending]}>
-              {attended ? 'Attended' : 'Upcoming'}
-            </Text>
-          );
-        })()}
+        <Text style={[styles.status, attended ? styles.attended : styles.pending]}>
+          {attended ? 'Attended' : 'Upcoming'}
+        </Text>
       </TouchableOpacity>
     );
   };

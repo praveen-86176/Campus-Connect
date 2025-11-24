@@ -11,7 +11,7 @@ type Props = {
 const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
   const scale = useRef(new Animated.Value(1)).current;
   const daysLeft = Math.ceil((new Date(event.date).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-  const countdown = Number.isFinite(daysLeft) ? (daysLeft >= 0 ? `${daysLeft}d` : 'Past') : '';
+  const countdown = Number.isFinite(daysLeft) && daysLeft >= 0 ? `${daysLeft}d` : daysLeft < 0 ? 'Past' : '';
 
   const handlePressIn = () => {
     Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start();
