@@ -717,9 +717,9 @@ in the Software without restriction...
 **Praveen Kumar**  
 Roll No: 240410700107  
 Year & Section: 3rd Semester  
-Email: [Gmail](praveenk86176@gmail.com)
+Email: [Gmail](https://mail.google.com/mail/u/0/?tab=rm&ogbl#inbox)
 
-GitHub: [@praveenkumar](https://github.com/praveen-86176)  
+GitHub: [praveen-86176](https://github.com/praveen-86176)  
 
 LinkedIn: [Praveen Kumar](https://linkedin.com/in/kumar-praveen-a914a2326/)
 
