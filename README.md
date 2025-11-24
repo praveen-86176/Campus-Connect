@@ -168,7 +168,8 @@ Before you begin, ensure you have the following installed:
 - **npm** or **yarn** - Comes with Node.js
 - **Expo CLI** - Install globally: `npm install -g expo-cli`
 - **Git** - [Download](https://git-scm.com/)
-- **iOS Simulator** (Mac only) or **Android Studio** with Android Emulator
+- **iOS Simulator** (Mac only) 
+- **Android Studio** with Android Emulator
 
 ### Installation
 
