@@ -2,20 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// TODO: Replace with your Firebase project configuration
-// Get these values from Firebase Console > Project Settings > General
-// 1. Go to https://console.firebase.google.com
-// 2. Select your project (or create one)
-// 3. Click the gear icon > Project settings
-// 4. Scroll down to "Your apps" and click the web icon (</>)
-// 5. Register your app and copy the config values below
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyDoVWomzb6WNuLLKyQdgnBNCzkCKiHJI4Y",
+    authDomain: "campus-connect-26c81.firebaseapp.com",
+    projectId: "campus-connect-26c81",
+    storageBucket: "campus-connect-26c81.firebasestorage.app",
+    messagingSenderId: "12012525850",
+    appId: "1:12012525850:web:7149c8bf024135b3eb74a3",
+    measurementId: "G-DTPC5VGWMD"
 };
 
 // Initialize Firebase
