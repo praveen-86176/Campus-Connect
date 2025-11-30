@@ -1,86 +1,152 @@
 import { memo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Event } from '../types';
 
 type Props = {
   event: Event;
   onPress: (event: Event) => void;
+  category?: string;
 };
 
-const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const daysLeft = Math.ceil((new Date(event.date).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-  const countdown = Number.isFinite(daysLeft) && daysLeft >= 0 ? `${daysLeft}d` : daysLeft < 0 ? 'Past' : '';
-
-  const handlePressIn = () => {
-    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
-  };
-
+const EventCardComponent: React.FC<Props> = ({ event, onPress, category = 'Tech' }) => {
   return (
-    <TouchableOpacity
-      onPress={() => onPress(event)}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      accessibilityRole="button"
-      accessibilityLabel={`${event.title}, ${event.date} ${event.time}, ${event.location}`}
-    >
-      <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{event.title}</Text>
-          <Text style={styles.meta}>{event.rsvpCount}/{event.capacity}</Text>
+    <View style={styles.cardContainer}>
+      {/* Gradient Header with Calendar Icon */}
+      <LinearGradient
+        colors={['#6B9FFF', '#A78BFA']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientHeader}
+      >
+        <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
+      </LinearGradient>
+
+      {/* Event Details */}
+      <View style={styles.contentContainer}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={2}>
+            {event.title}
+          </Text>
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>{category}</Text>
+          </View>
         </View>
-        <Text style={styles.detail}>{event.date} • {event.time}{countdown ? ` • ${countdown}` : ''}</Text>
-        <Text style={styles.location}>{event.location}</Text>
-      </Animated.View>
-    </TouchableOpacity>
+
+        <Text style={styles.clubName}>Computer Science Club</Text>
+
+        {/* Date, Time, Location */}
+        <View style={styles.infoRow}>
+          <Ionicons name="calendar" size={16} color={Colors.mutedText} />
+          <Text style={styles.infoText}>{event.date}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Ionicons name="time" size={16} color={Colors.mutedText} />
+          <Text style={styles.infoText}>{event.time}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Ionicons name="location" size={16} color={Colors.mutedText} />
+          <Text style={styles.infoText}>{event.location}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Ionicons name="people" size={16} color={Colors.mutedText} />
+          <Text style={styles.infoText}>{event.rsvpCount} attending</Text>
+        </View>
+
+        {/* RSVP Button */}
+        <TouchableOpacity
+          style={styles.rsvpButton}
+          onPress={() => onPress(event)}
+        >
+          <Text style={styles.rsvpButtonText}>RSVP Now</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
 export const EventCard = memo(EventCardComponent);
 
 const styles = StyleSheet.create({
-  card: {
+  cardContainer: {
     backgroundColor: Colors.card,
-    padding: 18,
-    borderRadius: 18,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
     ...Platform.select({
-      web: { boxShadow: '0px 6px 12px rgba(0,0,0,0.06)' },
+      web: { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' },
       default: {
         shadowColor: '#000',
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.08,
         shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
+        shadowOffset: { width: 0, height: 4 },
       },
     }),
   },
-  headerRow: {
+  gradientHeader: {
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contentContainer: {
+    padding: 16,
+  },
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    flex: 1,
-    marginRight: 12,
-  },
-  meta: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  detail: {
-    color: Colors.mutedText,
+    alignItems: 'flex-start',
     marginBottom: 4,
   },
-  location: {
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
+    flex: 1,
+    marginRight: 8,
+  },
+  categoryBadge: {
+    backgroundColor: Colors.categoryBg,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.categoryText,
+  },
+  clubName: {
+    fontSize: 14,
+    color: Colors.primary,
+    marginBottom: 12,
     fontWeight: '500',
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: Colors.mutedText,
+    marginLeft: 8,
+  },
+  rsvpButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  rsvpButtonText: {
+    color: Colors.textLight,
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });
+

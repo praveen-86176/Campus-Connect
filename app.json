@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "campusconnect",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -25,7 +26,6 @@
       "predictiveBackGestureEnabled": false,
       "jsEngine": "hermes"
     },
-    
     "web": {
       "favicon": "./assets/favicon.png"
     }

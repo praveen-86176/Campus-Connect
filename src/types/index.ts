@@ -45,3 +45,20 @@ export type AttendanceRecord = {
 };
 
 export type AttendanceStatus = 'absent' | 'checked_in' | 'checked_out';
+
+// Authentication types
+export type User = {
+  uid: string;
+  email: string;
+  name: string;
+  major?: string;
+  graduationYear?: string;
+  photoURL?: string;
+  createdAt: Date;
+};
+
+export type AuthStackParamList = {
+  SignIn: undefined;
+  SignUp: undefined;
+  ForgotPassword: undefined;
+};

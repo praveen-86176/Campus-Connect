@@ -2,31 +2,31 @@ import { Club, Event, RSVP, UserProfile } from '../types';
 
 export const mockUser: UserProfile = {
   id: 'user123',
-  name: 'Praveen Kumar',
-  email: 'praveen@college.edu',
+  name: 'Sarah Johnson',
+  email: 'sarah@college.edu',
 };
 
 export const mockClubs: Club[] = [
   {
     id: '1',
-    name: 'Photography Club',
-    description: 'Capture campus moments',
-    logo: 'https://images.unsplash.com/photo-1518770660439-4636190af475?fm=jpg&fit=crop&w=100&q=40',
-    memberCount: 45,
+    name: 'Computer Science Club',
+    description: 'Weekly coding workshops and tech talks',
+    logo: 'https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?fm=jpg&fit=crop&w=100&q=40',
+    memberCount: 234,
   },
   {
     id: '2',
-    name: 'Coding Club',
-    description: 'Build real-world software projects',
-    logo: 'https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?fm=jpg&fit=crop&w=100&q=40',
-    memberCount: 82,
+    name: 'Photography Club',
+    description: 'Capture campus moments and learn photography',
+    logo: 'https://images.unsplash.com/photo-1518770660439-4636190af475?fm=jpg&fit=crop&w=100&q=40',
+    memberCount: 156,
   },
   {
     id: '3',
     name: 'Drama Club',
-    description: 'Stage performances and improv',
+    description: 'Stage performances and improv workshops',
     logo: 'https://images.unsplash.com/photo-1515165562835-c4c1bfa2b805?fm=jpg&fit=crop&w=100&q=40',
-    memberCount: 36,
+    memberCount: 89,
   },
 ];
 
@@ -34,13 +34,13 @@ export const mockEvents: Event[] = [
   {
     id: '1',
     clubId: '1',
-    title: 'Photo Walk 2025',
-    description: 'Explore campus photography spots with seniors.',
-    date: '2025-12-01',
-    time: '10:00 AM',
-    location: 'Campus Garden',
-    capacity: 30,
-    rsvpCount: 15,
+    title: 'Tech Talk: AI in Modern Development',
+    description: 'Explore the latest AI technologies and their applications in software development.',
+    date: 'Nov 28, 2025',
+    time: '6:00 PM',
+    location: 'Engineering Hall 205',
+    capacity: 100,
+    rsvpCount: 45,
   },
   {
     id: '2',

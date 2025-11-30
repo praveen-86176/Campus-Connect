@@ -4,6 +4,8 @@ export type MainTabsParamList = {
   Home: undefined;
   Clubs: undefined;
   MyRsvps: undefined;
+  CheckIn: undefined;
+  Profile: undefined;
 };
 
 export type RootStackParamList = {
