@@ -84,15 +84,18 @@ const styles = StyleSheet.create({
   cardContainer: {
     backgroundColor: Colors.card,
     borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
-    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
     ...Platform.select({
-      web: { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' },
+      web: { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)' },
       default: {
         shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
       },
     }),
   },

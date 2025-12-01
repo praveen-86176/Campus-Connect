@@ -1,15 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    onAuthStateChanged,
-    sendPasswordResetEmail,
-    updateProfile as firebaseUpdateProfile,
-    User as FirebaseUser
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase.config';
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { User } from '../types';
 
 type AuthContextType = {
@@ -29,20 +20,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
             if (firebaseUser) {
                 // Fetch additional user data from Firestore
-                const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                const userDoc = await firestore().collection('users').doc(firebaseUser.uid).get();
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
                     setUser({
                         uid: firebaseUser.uid,
                         email: firebaseUser.email!,
-                        name: userData.name || firebaseUser.displayName || '',
-                        major: userData.major,
-                        graduationYear: userData.graduationYear,
+                        name: userData?.name || firebaseUser.displayName || '',
+                        major: userData?.major,
+                        graduationYear: userData?.graduationYear,
                         photoURL: firebaseUser.photoURL || undefined,
-                        createdAt: userData.createdAt?.toDate() || new Date(),
+                        createdAt: userData?.createdAt?.toDate() || new Date(),
                     });
                 } else {
                     // Fallback if Firestore document doesn't exist
@@ -64,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signIn = async (email: string, password: string) => {
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            await auth().signInWithEmailAndPassword(email, password);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to sign in');
         }
@@ -72,21 +63,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signUp = async (email: string, password: string, userData: Partial<User>) => {
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await auth().createUserWithEmailAndPassword(email, password);
             const { uid } = userCredential.user;
 
             // Update Firebase Auth profile
-            await firebaseUpdateProfile(userCredential.user, {
+            await userCredential.user.updateProfile({
                 displayName: userData.name,
             });
 
             // Store additional user data in Firestore
-            await setDoc(doc(db, 'users', uid), {
+            await firestore().collection('users').doc(uid).set({
                 name: userData.name,
                 email: email,
                 major: userData.major || '',
                 graduationYear: userData.graduationYear || '',
-                createdAt: new Date(),
+                createdAt: firestore.FieldValue.serverTimestamp(),
             });
         } catch (error: any) {
             throw new Error(error.message || 'Failed to create account');
@@ -95,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signOut = async () => {
         try {
-            await firebaseSignOut(auth);
+            await auth().signOut();
         } catch (error: any) {
             throw new Error(error.message || 'Failed to sign out');
         }
@@ -105,17 +96,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!user) throw new Error('No user logged in');
 
         try {
+            const currentUser = auth().currentUser;
+
             // Update Firebase Auth profile
-            if (userData.name && auth.currentUser) {
-                await firebaseUpdateProfile(auth.currentUser, {
+            if (userData.name && currentUser) {
+                await currentUser.updateProfile({
                     displayName: userData.name,
                 });
             }
 
             // Update Firestore document
-            await updateDoc(doc(db, 'users', user.uid), {
+            await firestore().collection('users').doc(user.uid).update({
                 ...userData,
-                updatedAt: new Date(),
+                updatedAt: firestore.FieldValue.serverTimestamp(),
             });
 
             // Update local state
@@ -127,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const resetPassword = async (email: string) => {
         try {
-            await sendPasswordResetEmail(auth, email);
+            await auth().sendPasswordResetEmail(email);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to send reset email');
         }
@@ -157,3 +150,4 @@ export const useAuth = () => {
     }
     return context;
 };
+

@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import { mockUser } from '../constants/mockData';
+import { useAuth } from '../context/AuthContext';
 import { useCampusData } from '../context/CampusDataContext';
 import { EventCard } from '../components/EventCard';
 import { SearchBar } from '../components/SearchBar';
@@ -24,6 +24,7 @@ type HomeNavProp = CompositeNavigationProp<
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavProp>();
   const { events } = useCampusData();
+  const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,7 +61,7 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.headerContent}>
             <View>
               <Text style={styles.welcome}>Welcome back,</Text>
-              <Text style={styles.name}>{mockUser.name}</Text>
+              <Text style={styles.name}>{user?.name || 'User'}</Text>
             </View>
             <TouchableOpacity style={styles.notificationButton}>
               <Ionicons name="notifications" size={24} color={colors.textLight} />

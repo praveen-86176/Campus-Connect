@@ -79,12 +79,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: 'hidden',
     ...Platform.select({
-      web: { boxShadow: '0px 4px 12px rgba(0,0,0,0.08)' },
+      web: { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)' },
       default: {
         shadowColor: '#000',
         shadowOpacity: 0.08,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 4 },
+        elevation: 3,
       },
     }),
   },
