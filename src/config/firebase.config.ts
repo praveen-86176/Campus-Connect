@@ -16,13 +16,15 @@ import {
 
 // TODO: Replace with your Firebase project configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDoVWomzb6WNuLLKyQdgnBNCzkCKiHJI4Y",
-  authDomain: "campus-connect-26c81.firebaseapp.com",
-  projectId: "campus-connect-26c81",
-  storageBucket: "campus-connect-26c81.firebasestorage.app",
-  messagingSenderId: "12012525850",
-  appId: "1:12012525850:web:7149c8bf024135b3eb74a3",
-  measurementId: "G-DTPC5VGWMD"
+    apiKey: EXPO_PUBLIC_FIREBASE_API_KEY,
+    authDomain: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: Platform.select({
+        ios: EXPO_PUBLIC_FIREBASE_IOS_APP_ID,
+        default: EXPO_PUBLIC_FIREBASE_APP_ID,
+    })
 };
 
 
