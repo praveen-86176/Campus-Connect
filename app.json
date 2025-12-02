@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "jsEngine": "hermes"
+      "jsEngine": "hermes",
+      "bundleIdentifier": "com.campusconnect.app"
     },
     "android": {
       "adaptiveIcon": {

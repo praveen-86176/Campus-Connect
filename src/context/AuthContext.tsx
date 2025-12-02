@@ -1,6 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import {
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut as firebaseSignOut,
+    updateProfile,
+    sendPasswordResetEmail
+} from 'firebase/auth';
+import {
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    serverTimestamp
+} from 'firebase/firestore';
+import { auth, db } from '../config/firebase.config';
 import { User } from '../types';
 
 type AuthContextType = {
@@ -20,10 +34,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 // Fetch additional user data from Firestore
-                const userDoc = await firestore().collection('users').doc(firebaseUser.uid).get();
+                const userDocRef = doc(db, 'users', firebaseUser.uid);
+                const userDoc = await getDoc(userDocRef);
+
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
                     setUser({
@@ -55,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signIn = async (email: string, password: string) => {
         try {
-            await auth().signInWithEmailAndPassword(email, password);
+            await signInWithEmailAndPassword(auth, email, password);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to sign in');
         }
@@ -63,21 +79,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signUp = async (email: string, password: string, userData: Partial<User>) => {
         try {
-            const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const { uid } = userCredential.user;
 
             // Update Firebase Auth profile
-            await userCredential.user.updateProfile({
+            await updateProfile(userCredential.user, {
                 displayName: userData.name,
             });
 
             // Store additional user data in Firestore
-            await firestore().collection('users').doc(uid).set({
+            await setDoc(doc(db, 'users', uid), {
                 name: userData.name,
                 email: email,
                 major: userData.major || '',
                 graduationYear: userData.graduationYear || '',
-                createdAt: firestore.FieldValue.serverTimestamp(),
+                createdAt: serverTimestamp(),
             });
         } catch (error: any) {
             throw new Error(error.message || 'Failed to create account');
@@ -86,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signOut = async () => {
         try {
-            await auth().signOut();
+            await firebaseSignOut(auth);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to sign out');
         }
@@ -96,19 +112,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!user) throw new Error('No user logged in');
 
         try {
-            const currentUser = auth().currentUser;
+            const currentUser = auth.currentUser;
 
             // Update Firebase Auth profile
             if (userData.name && currentUser) {
-                await currentUser.updateProfile({
+                await updateProfile(currentUser, {
                     displayName: userData.name,
                 });
             }
 
             // Update Firestore document
-            await firestore().collection('users').doc(user.uid).update({
+            await updateDoc(doc(db, 'users', user.uid), {
                 ...userData,
-                updatedAt: firestore.FieldValue.serverTimestamp(),
+                updatedAt: serverTimestamp(),
             });
 
             // Update local state
@@ -120,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const resetPassword = async (email: string) => {
         try {
-            await auth().sendPasswordResetEmail(email);
+            await sendPasswordResetEmail(auth, email);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to send reset email');
         }

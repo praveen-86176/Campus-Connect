@@ -5,12 +5,35 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
+import { useCampusData } from '../context/CampusDataContext';
 import { useAuth } from '../context/AuthContext';
 
 export const ProfileScreen: React.FC = () => {
     const { theme, toggleTheme, isDark } = useTheme();
     const { user, signOut } = useAuth();
+    const { rsvps, attendance, events } = useCampusData();
     const colors = getColors(isDark);
+
+    // Calculate stats
+    const eventsAttended = attendance.filter(a => a.userId === user?.uid && a.checkInAt).length;
+
+    // Unique clubs joined based on RSVPs (approximation)
+    const clubsJoined = new Set(
+        rsvps
+            .filter(r => r.userId === user?.uid)
+            .map(r => {
+                const event = events.find(e => e.id === r.eventId);
+                return event?.clubId;
+            })
+            .filter(Boolean)
+    ).size;
+
+    const upcomingEvents = rsvps.filter(r => {
+        if (r.userId !== user?.uid) return false;
+        const event = events.find(e => e.id === r.eventId);
+        if (!event) return false;
+        return new Date(event.date) > new Date();
+    }).length;
 
     // Mock notification preferences
     const [eventReminders, setEventReminders] = useState(true);
@@ -81,15 +104,15 @@ export const ProfileScreen: React.FC = () => {
                         {/* Stats Row */}
                         <View style={styles.statsContainer}>
                             <View style={styles.statItem}>
-                                <Text style={styles.statValue}>12</Text>
+                                <Text style={styles.statValue}>{eventsAttended}</Text>
                                 <Text style={styles.statLabel}>Events Attended</Text>
                             </View>
                             <View style={styles.statItem}>
-                                <Text style={styles.statValue}>3</Text>
+                                <Text style={styles.statValue}>{clubsJoined}</Text>
                                 <Text style={styles.statLabel}>Clubs Joined</Text>
                             </View>
                             <View style={styles.statItem}>
-                                <Text style={styles.statValue}>5</Text>
+                                <Text style={styles.statValue}>{upcomingEvents}</Text>
                                 <Text style={styles.statLabel}>Upcoming</Text>
                             </View>
                         </View>
