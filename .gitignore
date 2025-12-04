@@ -33,6 +33,15 @@ yarn-error.*
 # local env files
 .env*.local
 .env
+.env.local
+.env.production
+.env.development
+
+# Credentials and secrets
+src/constants/creds.tsx
+**/creds.tsx
+**/*credentials*
+**/*secrets*
 
 # typescript
 *.tsbuildinfo

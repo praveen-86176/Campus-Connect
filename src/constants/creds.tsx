@@ -7,13 +7,15 @@ export const EXPO_PUBLIC_FIREBASE_APP_ID = process.env.EXPO_PUBLIC_FIREBASE_APP_
 export const EXPO_PUBLIC_FIREBASE_IOS_APP_ID = process.env.EXPO_PUBLIC_FIREBASE_IOS_APP_ID || '1:12012525850:ios:d2bdfd7aa617a9e2eb74a3';
 export const EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID = process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
-// Cloudinary Configuration
-export const CLOUDINARY_CLOUD_NAME = 'dkboqz2t9';
-export const CLOUDINARY_API_KEY = '153467722819223';
-export const CLOUDINARY_API_SECRET = 'ZnrDtMk4-apXrHBqmyr7wFIM-_c';
-export const CLOUDINARY_URL = `cloudinary://${CLOUDINARY_API_KEY}:${CLOUDINARY_API_SECRET}@${CLOUDINARY_CLOUD_NAME}`;
+// Cloudinary Configuration - Use environment variables for security
+export const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+export const CLOUDINARY_API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY || '';
+export const CLOUDINARY_API_SECRET = process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET || '';
+export const CLOUDINARY_URL = CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET && CLOUDINARY_CLOUD_NAME
+  ? `cloudinary://${CLOUDINARY_API_KEY}:${CLOUDINARY_API_SECRET}@${CLOUDINARY_CLOUD_NAME}`
+  : '';
 
 // Cloudinary Upload Presets
 // These match the preset names in your Cloudinary Dashboard
-export const CLOUDINARY_PROFILE_PRESET = 'Profile Pic'; // Preset for profile pictures
-export const CLOUDINARY_EVENT_PRESET = 'Events'; // Preset for event photos
+export const CLOUDINARY_PROFILE_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_PROFILE_PRESET || 'Profile Pic'; // Preset for profile pictures
+export const CLOUDINARY_EVENT_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_EVENT_PRESET || 'Events'; // Preset for event photos
