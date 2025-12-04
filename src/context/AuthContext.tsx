@@ -46,9 +46,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         uid: firebaseUser.uid,
                         email: firebaseUser.email!,
                         name: userData?.name || firebaseUser.displayName || '',
+                        phone: userData?.phone,
+                        photoURL: firebaseUser.photoURL || userData?.photoURL || undefined,
+                        role: userData?.role || 'student',
+                        institution: userData?.institution,
+                        adminRole: userData?.adminRole,
+                        collegeId: userData?.collegeId,
                         major: userData?.major,
                         graduationYear: userData?.graduationYear,
-                        photoURL: firebaseUser.photoURL || undefined,
+                        yearOfStudy: userData?.yearOfStudy,
+                        interests: userData?.interests || [],
                         createdAt: userData?.createdAt?.toDate() || new Date(),
                     });
                 } else {
@@ -57,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         uid: firebaseUser.uid,
                         email: firebaseUser.email!,
                         name: firebaseUser.displayName || '',
+                        role: 'student',
                         createdAt: new Date(),
                     });
                 }
@@ -88,13 +96,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             // Store additional user data in Firestore
-            await setDoc(doc(db, 'users', uid), {
+            const userDocData: any = {
                 name: userData.name,
                 email: email,
-                major: userData.major || '',
-                graduationYear: userData.graduationYear || '',
+                role: userData.role || 'student',
                 createdAt: serverTimestamp(),
-            });
+            };
+
+            // Add admin-specific fields
+            if (userData.role === 'admin') {
+                userDocData.institution = userData.institution || '';
+                userDocData.adminRole = userData.adminRole || '';
+                userDocData.collegeId = userData.collegeId || '';
+                userDocData.phone = userData.phone || '';
+            }
+
+            // Add student-specific fields
+            if (userData.role === 'student') {
+                userDocData.major = userData.major || '';
+                userDocData.graduationYear = userData.graduationYear || '';
+                userDocData.yearOfStudy = userData.yearOfStudy || '';
+                userDocData.interests = userData.interests || [];
+                userDocData.phone = userData.phone || '';
+                userDocData.institution = userData.institution || '';
+                if (userData.photoURL) {
+                    userDocData.photoURL = userData.photoURL;
+                }
+            }
+
+            await setDoc(doc(db, 'users', uid), userDocData);
         } catch (error: any) {
             throw new Error(error.message || 'Failed to create account');
         }

@@ -1,13 +1,14 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { z } from 'zod';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
-import { mockUser } from '../constants/mockData';
+import { useAuth } from '../context/AuthContext';
 import { useCampusData } from '../context/CampusDataContext';
 import { RootStackParamList } from '../navigation/types';
 import { RSVP } from '../types';
+import { generateRsvpId } from '../utils/idUtils';
 
 type RouteProps = RouteProp<RootStackParamList, 'RSVPForm'>;
 type NavProps = NativeStackNavigationProp<RootStackParamList>;
@@ -16,31 +17,30 @@ export const RSVPFormScreen: React.FC = () => {
   const navigation = useNavigation<NavProps>();
   const route = useRoute<RouteProps>();
   const { rsvps, upsertRsvp } = useCampusData();
-  const existingRsvp = rsvps.find((record) => record.eventId === route.params.eventId && record.userId === mockUser.id);
+  const { user } = useAuth();
+  const existingRsvp = rsvps.find((record) => record.eventId === route.params.eventId && record.userId === (user?.uid ?? ''));
 
-  const [fullName, setFullName] = useState(existingRsvp?.userName ?? mockUser.name);
-  const [email, setEmail] = useState(existingRsvp?.email ?? mockUser.email);
+  const [fullName, setFullName] = useState(existingRsvp?.userName ?? (user?.name ?? ''));
+  const [email, setEmail] = useState(existingRsvp?.email ?? (user?.email ?? ''));
   const [phone, setPhone] = useState(existingRsvp?.phone ?? '');
   const [saving, setSaving] = useState(false);
 
-  const rsvpSchema = z.object({
-    fullName: z.string().min(2, 'Name must be at least 2 characters'),
-    email: z.string().email('Invalid email address'),
-    phone: z.string().regex(/^[0-9]{10}$/, 'Phone must be 10 digits'),
-  });
-
   const handleSubmit = async () => {
-    const result = rsvpSchema.safeParse({ fullName, email, phone });
-    if (!result.success) {
-      const msg = result.error.issues[0]?.message ?? 'Invalid form data';
-      Alert.alert('Invalid details', msg);
+    if (!fullName.trim() || !email.trim() || !phone.trim()) {
+      Alert.alert('Missing info', 'Please fill all fields to continue.');
       return;
     }
 
+    const userId = user?.uid ?? '';
+    const eventId = route.params.eventId;
+    
+    // RSVP ID format: `${userId}_${eventId}`
+    const rsvpId = existingRsvp?.id ?? generateRsvpId(userId, eventId);
+    
     const newRsvp: RSVP = {
-      id: existingRsvp?.id ?? Date.now().toString(),
-      userId: mockUser.id,
-      eventId: route.params.eventId,
+      id: rsvpId,
+      userId,
+      eventId,
       userName: fullName.trim(),
       email: email.trim(),
       phone: phone.trim(),
@@ -64,32 +64,46 @@ export const RSVPFormScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>RSVP Details</Text>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.title}>RSVP Details</Text>
 
-      <TextInput
-        placeholder="Full Name"
-        style={styles.input}
-        value={fullName}
-        onChangeText={setFullName}
-      />
-      <TextInput
-        placeholder="Email"
-        keyboardType="email-address"
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        placeholder="Phone Number"
-        keyboardType="phone-pad"
-        style={styles.input}
-        value={phone}
-        onChangeText={setPhone}
-      />
+            <TextInput
+              placeholder="Full Name"
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <TextInput
+              placeholder="Email"
+              keyboardType="email-address"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+            />
+            <TextInput
+              placeholder="Phone Number"
+              keyboardType="phone-pad"
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+            />
 
-      <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={handleSubmit} disabled={saving}>
-        <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Submit RSVP'}</Text>
-      </TouchableOpacity>
+            <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={handleSubmit} disabled={saving}>
+              <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Submit RSVP'}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </View>
   );
 };
@@ -97,8 +111,20 @@ export const RSVPFormScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: Colors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 22,

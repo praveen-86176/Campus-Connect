@@ -54,16 +54,19 @@ export const CategoryFilter: React.FC<Props> = ({ onCategoryChange }) => {
 const styles = StyleSheet.create({
     container: {
         marginBottom: 24,
+        width: '100%',
     },
     contentContainer: {
-        paddingRight: 20,
+        paddingRight: 0, // Remove extra padding to prevent overflow
+        paddingLeft: 0,
     },
     chip: {
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 20,
         marginRight: 12,
         borderWidth: 1,
+        minWidth: 80,
     },
     chipText: {
         fontSize: 14,

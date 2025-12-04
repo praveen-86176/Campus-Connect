@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
@@ -12,12 +12,16 @@ import { validateEmail } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type SignInNavProp = NativeStackNavigationProp<AuthStackParamList, 'SignIn'>;
+type SignInRouteProp = RouteProp<AuthStackParamList, 'SignIn'>;
 
 export const SignInScreen: React.FC = () => {
     const navigation = useNavigation<SignInNavProp>();
+    const route = useRoute<SignInRouteProp>();
     const { signIn } = useAuth();
     const { isDark } = useTheme();
     const colors = getColors(isDark);
+    
+    const selectedRole = route.params?.selectedRole;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -142,14 +146,37 @@ export const SignInScreen: React.FC = () => {
                         </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* Sign Up Link */}
+                    {/* Remember Me Checkbox */}
+                    <View style={styles.rememberMeContainer}>
+                        <TouchableOpacity
+                            style={styles.checkboxContainer}
+                            onPress={() => {}}
+                        >
+                            <View style={[styles.checkbox, { borderColor: colors.border }]}>
+                                <Ionicons name="checkmark" size={16} color={colors.primary} style={{ opacity: 0 }} />
+                            </View>
+                            <Text style={[styles.checkboxLabel, { color: colors.text }]}>Remember me</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Sign Up Links */}
                     <View style={styles.signUpContainer}>
                         <Text style={[styles.signUpText, { color: colors.mutedText }]}>
                             Don't have an account?{' '}
                         </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                            <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign Up</Text>
-                        </TouchableOpacity>
+                        <View style={styles.signUpLinks}>
+                            <TouchableOpacity onPress={() => navigation.navigate('StudentSignUp')}>
+                                <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign Up as Student</Text>
+                            </TouchableOpacity>
+                            {selectedRole !== 'admin' && (
+                                <>
+                                    <Text style={[styles.signUpText, { color: colors.mutedText }]}> or </Text>
+                                    <TouchableOpacity onPress={() => navigation.navigate('AdminSignUp')}>
+                                        <Text style={[styles.signUpLink, { color: colors.primary }]}>Sign Up as Admin</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </View>
                     </View>
                 </View>
             </ScrollView>
@@ -233,10 +260,33 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
-    signUpContainer: {
+    rememberMeContainer: {
+        marginBottom: 20,
+    },
+    checkboxContainer: {
         flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 2,
+        marginRight: 8,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    checkboxLabel: {
+        fontSize: 14,
+    },
+    signUpContainer: {
+        alignItems: 'center',
+    },
+    signUpLinks: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
     },
     signUpText: {
         fontSize: 15,

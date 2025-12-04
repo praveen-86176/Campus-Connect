@@ -20,11 +20,12 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: Colors.card,
         borderRadius: 16,
-        padding: 20,
+        padding: 16,
         alignItems: 'center',
         justifyContent: 'center',
+        minWidth: 0, // Prevent overflow
         flex: 1,
-        marginHorizontal: 6,
+        maxWidth: '32%', // Ensure 3 cards fit in a row
         ...Platform.select({
             web: { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)' },
             default: {
@@ -37,14 +38,15 @@ const styles = StyleSheet.create({
         }),
     },
     value: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '700',
         marginBottom: 4,
     },
     label: {
-        fontSize: 13,
+        fontSize: 12,
         color: Colors.mutedText,
         textAlign: 'center',
         fontWeight: '500',
+        flexWrap: 'wrap',
     },
 });

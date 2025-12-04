@@ -12,8 +12,10 @@ import { QRScannerScreen } from '../screens/QRScannerScreen';
 import { RSVPFormScreen } from '../screens/RSVPFormScreen';
 import { AttendanceReportScreen } from '../screens/AttendanceReportScreen';
 import { CertificateScreen } from '../screens/CertificateScreen';
+import { EditProfileScreen } from '../screens/EditProfileScreen';
 import { MainTabs } from './MainTabs';
 import { AuthStack } from './AuthStack';
+import { AdminNavigator } from './AdminNavigator';
 import { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,30 +66,35 @@ const Navigation = () => {
       }}
     >
       {user ? (
-        // User is signed in - show main app
-        <Stack.Navigator
-          screenOptions={{
-            headerTintColor: '#fff',
-            headerTitleStyle: { fontWeight: '700' },
-            headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.primary }} />,
-          }}
-        >
-          <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen
-            name="EventsList"
-            component={EventsListScreen}
-            options={({ route }) => ({ title: route.params.clubName ?? 'Events' })}
-          />
-          <Stack.Screen
-            name="EventDetails"
-            component={EventDetailsScreen}
-            options={{ title: 'Event Details' }}
-          />
-          <Stack.Screen name="RSVPForm" component={RSVPFormScreen} options={{ title: 'RSVP' }} />
-          <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ title: 'Scan QR' }} />
-          <Stack.Screen name="AttendanceReport" component={AttendanceReportScreen} options={{ title: 'Attendance' }} />
-          <Stack.Screen name="Certificate" component={CertificateScreen} options={{ title: 'Certificate' }} />
-        </Stack.Navigator>
+        user.role === 'admin' || user.role === 'developer' ? (
+          <AdminNavigator />
+        ) : (
+          // User is signed in as student - show main app
+          <Stack.Navigator
+            screenOptions={{
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700' },
+              headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.primary }} />,
+            }}
+          >
+            <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen
+              name="EventsList"
+              component={EventsListScreen}
+              options={({ route }) => ({ title: route.params.clubName ?? 'Events' })}
+            />
+            <Stack.Screen
+              name="EventDetails"
+              component={EventDetailsScreen}
+              options={{ title: 'Event Details' }}
+            />
+            <Stack.Screen name="RSVPForm" component={RSVPFormScreen} options={{ title: 'RSVP' }} />
+            <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ title: 'Scan QR' }} />
+            <Stack.Screen name="AttendanceReport" component={AttendanceReportScreen} options={{ title: 'Attendance' }} />
+            <Stack.Screen name="Certificate" component={CertificateScreen} options={{ title: 'Certificate' }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+          </Stack.Navigator>
+        )
       ) : (
         // User is not signed in - show auth screens
         <AuthStack />

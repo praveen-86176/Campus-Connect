@@ -41,7 +41,7 @@ export const ForgotPasswordScreen: React.FC = () => {
             Alert.alert(
                 'Email Sent',
                 'Password reset instructions have been sent to your email.',
-                [{ text: 'OK', onPress: () => navigation.navigate('SignIn') }]
+                [{ text: 'OK', onPress: () => navigation.navigate({ name: 'SignIn', params: {} }) }]
             );
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to send reset email');
@@ -122,7 +122,7 @@ export const ForgotPasswordScreen: React.FC = () => {
                     {/* Back to Sign In */}
                     <TouchableOpacity
                         style={styles.backToSignIn}
-                        onPress={() => navigation.navigate('SignIn')}
+                        onPress={() => navigation.navigate({ name: 'SignIn', params: {} })}
                     >
                         <Ionicons name="arrow-back" size={16} color={colors.primary} />
                         <Text style={[styles.backToSignInText, { color: colors.primary }]}>

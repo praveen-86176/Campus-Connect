@@ -1,8 +1,8 @@
-import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { CompositeNavigationProp, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { useState, useCallback } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, StatusBar, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,15 +23,57 @@ type HomeNavProp = CompositeNavigationProp<
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavProp>();
-  const { events } = useCampusData();
+  const { events, refreshData } = useCampusData();
   const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Filter events based on search
+  // Refresh data when screen comes into focus (e.g., after creating event)
+  useFocusEffect(
+    useCallback(() => {
+      refreshData();
+    }, [refreshData])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshData]);
+
+  // Helper function to parse date safely
+  const parseEventDate = (dateStr: string): Date => {
+    // Handle YYYY-MM-DD format
+    if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return new Date(dateStr + 'T00:00:00');
+    }
+    // Handle other date formats
+    return new Date(dateStr);
+  };
+
+  // Filter events based on search - show ALL events (with or without images)
   const filteredEvents = events
-    .filter((event) => new Date(event.date) >= new Date())
+    .filter((event) => {
+      if (!event.date) {
+        console.warn(`⚠️ Event "${event.title}" has no date`);
+        return false;
+      }
+      try {
+        const eventDate = parseEventDate(event.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+        const isUpcoming = eventDate >= today;
+        return isUpcoming;
+      } catch (error) {
+        console.error('Error parsing event date:', event.date, error);
+        return true; // Include event if date parsing fails (better to show than hide)
+      }
+    })
     .filter((event) => {
       const matchesSearch = searchQuery === '' ||
         event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -39,8 +81,15 @@ export const HomeScreen: React.FC = () => {
 
       return matchesSearch;
     })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 10);
+    .sort((a, b) => {
+      try {
+        const dateA = parseEventDate(a.date);
+        const dateB = parseEventDate(b.date);
+        return dateA.getTime() - dateB.getTime();
+      } catch (error) {
+        return 0;
+      }
+    });
 
   const handleEventPress = (event: Event) => {
     navigation.navigate('EventDetails', { eventId: event.id });
@@ -85,6 +134,14 @@ export const HomeScreen: React.FC = () => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Category Filter */}
         <CategoryFilter />
@@ -95,11 +152,24 @@ export const HomeScreen: React.FC = () => {
         </Text>
 
         {/* Event Cards */}
-        {filteredEvents.length === 0 ? (
+        {events.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={64} color={colors.mutedText} />
+            <Text style={[styles.emptyText, { color: colors.mutedText }]}>
+              No events available
+            </Text>
+            <Text style={[styles.emptySubtext, { color: colors.mutedText }]}>
+              Pull down to refresh
+            </Text>
+          </View>
+        ) : filteredEvents.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={64} color={colors.mutedText} />
             <Text style={[styles.emptyText, { color: colors.mutedText }]}>
               {searchQuery ? 'No events found' : 'No upcoming events'}
+            </Text>
+            <Text style={[styles.emptySubtext, { color: colors.mutedText }]}>
+              {events.length} total event{events.length !== 1 ? 's' : ''} in system
             </Text>
           </View>
         ) : (
@@ -177,5 +247,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

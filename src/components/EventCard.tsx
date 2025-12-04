@@ -1,28 +1,49 @@
-import { memo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { memo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { Event } from '../types';
+import { useCampusData } from '../context/CampusDataContext';
 
 type Props = {
   event: Event;
   onPress: (event: Event) => void;
-  category?: string;
 };
 
-const EventCardComponent: React.FC<Props> = ({ event, onPress, category = 'Tech' }) => {
+const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
+  const { clubs } = useCampusData();
+  
+  // Get club name from real data
+  const club = clubs.find(c => c.id === event.clubId);
+  const clubName = club?.name || 'Club';
+  const category = event.category || 'Event';
+
   return (
     <View style={styles.cardContainer}>
-      {/* Gradient Header with Calendar Icon */}
-      <LinearGradient
-        colors={['#6B9FFF', '#A78BFA']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientHeader}
-      >
-        <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
-      </LinearGradient>
+      {/* Event Image or Gradient Header with Calendar Icon */}
+      {event.image && event.image.trim() !== '' ? (
+        <Image
+          source={{ uri: event.image }}
+          style={styles.eventImage}
+          resizeMode="cover"
+          onError={(error) => {
+            console.error('❌ Failed to load event image:', event.image, error.nativeEvent.error);
+          }}
+          onLoad={() => {
+            console.log('✅ Event image loaded successfully:', event.image);
+          }}
+        />
+      ) : (
+        <LinearGradient
+          colors={['#6B9FFF', '#A78BFA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientHeader}
+        >
+          <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
+        </LinearGradient>
+      )}
 
       {/* Event Details */}
       <View style={styles.contentContainer}>
@@ -30,12 +51,14 @@ const EventCardComponent: React.FC<Props> = ({ event, onPress, category = 'Tech'
           <Text style={styles.title} numberOfLines={2}>
             {event.title}
           </Text>
-          <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{category}</Text>
-          </View>
+          {category && (
+            <View style={styles.categoryBadge}>
+              <Text style={styles.categoryText}>{category}</Text>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.clubName}>Computer Science Club</Text>
+        <Text style={styles.clubName}>{clubName}</Text>
 
         {/* Date, Time, Location */}
         <View style={styles.infoRow}>
@@ -55,7 +78,7 @@ const EventCardComponent: React.FC<Props> = ({ event, onPress, category = 'Tech'
 
         <View style={styles.infoRow}>
           <Ionicons name="people" size={16} color={Colors.mutedText} />
-          <Text style={styles.infoText}>{event.rsvpCount} attending</Text>
+          <Text style={styles.infoText}>{event.registeredCount} attending</Text>
         </View>
 
         {/* RSVP Button */}
@@ -93,6 +116,11 @@ const styles = StyleSheet.create({
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  eventImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.card,
   },
   contentContainer: {
     padding: 16,

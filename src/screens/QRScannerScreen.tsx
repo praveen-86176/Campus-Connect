@@ -1,172 +1,234 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Alert, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, Alert, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import QRCode from 'react-native-qrcode-svg';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { useCampusData } from '../context/CampusDataContext';
-import { InfoBanner } from '../components/InfoBanner';
-import { NextEventCard } from '../components/NextEventCard';
-import { CheckInInstructions } from '../components/CheckInInstructions';
-import { UpcomingTicketsList } from '../components/UpcomingTicketsList';
 
-type TabType = 'myqr' | 'scan';
+type QRCodeData = {
+  eventId: string;
+  userId: string;
+  timestamp?: string;
+};
 
 export const QRScannerScreen: React.FC = () => {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [hasScanned, setHasScanned] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('myqr');
-  const { markCheckIn, markCheckOut, getUserAttendanceStatus, rsvps, getEventById } = useCampusData();
+  const navigation = useNavigation();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
+  const { user } = useAuth();
+  const { markCheckIn, getEventById } = useCampusData();
+  
+  const [permission, requestPermission] = useCameraPermissions();
+  const [hasScanned, setHasScanned] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scannedData, setScannedData] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!permission && activeTab === 'scan') {
+    if (!permission) {
       requestPermission();
     }
-  }, [permission, requestPermission, activeTab]);
+  }, [permission, requestPermission]);
+
+  const validateQRCode = (data: string): QRCodeData | null => {
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.eventId && parsed.userId) {
+        return parsed as QRCodeData;
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  };
 
   const handleBarcodeScanned = async ({ data }: BarcodeScanningResult) => {
-    if (hasScanned) {
+    if (hasScanned || isProcessing) {
       return;
     }
+
     setHasScanned(true);
+    setScannedData(data);
+    setIsProcessing(true);
+
     try {
-      const payload = JSON.parse(data) as { eventId: string; userId: string };
-      const status = getUserAttendanceStatus(payload.eventId, payload.userId);
-      if (status === 'checked_in') {
-        await markCheckOut(payload.userId, payload.eventId);
-        Alert.alert('Checked out', 'Goodbye! See you next time.', [{ text: 'OK' }]);
-      } else {
-        await markCheckIn(payload.userId, payload.eventId);
-        Alert.alert('Checked in', 'Welcome to the event!', [{ text: 'OK' }]);
+      // Validate QR code format
+      const qrData = validateQRCode(data);
+      
+      if (!qrData) {
+        Alert.alert(
+          'Invalid QR Code',
+          'This QR code is not a valid event pass. Please scan a valid event QR code.',
+          [
+            { 
+              text: 'Try Again', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+              }
+            }
+          ]
+        );
+        return;
       }
-    } catch (e) {
-      Alert.alert('Invalid QR', 'Unable to read QR data.', [{ text: 'Scan Again', onPress: () => setHasScanned(false) }]);
+
+      // Check if the QR code is for the current user (if scanning own QR)
+      // Or if admin/organizer is scanning someone else's QR
+      const event = getEventById(qrData.eventId);
+      
+      if (!event) {
+        Alert.alert(
+          'Event Not Found',
+          'The event associated with this QR code could not be found.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      // Mark check-in
+      await markCheckIn(qrData.eventId, qrData.userId);
+      
+      // Get user info for display
+      const scannedUserName = qrData.userId === user?.uid ? 'You' : 'The user';
+      const verb = qrData.userId === user?.uid ? 'have' : 'has';
+      
+      Alert.alert(
+        'Check-in Successful! ✅',
+        `${scannedUserName} ${verb} been checked in to "${event.title}".`,
+        [
+          { 
+            text: 'Scan Another', 
+            onPress: () => {
+              setHasScanned(false);
+              setIsProcessing(false);
+              setScannedData(null);
+            }
+          },
+          { 
+            text: 'Done', 
+            style: 'default',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    } catch (error: any) {
+      console.error('Error processing QR code:', error);
+      Alert.alert(
+        'Check-in Failed',
+        error.message || 'Failed to process check-in. Please try again.',
+        [
+          { 
+            text: 'Try Again', 
+            onPress: () => {
+              setHasScanned(false);
+              setIsProcessing(false);
+              setScannedData(null);
+            }
+          }
+        ]
+      );
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  // Mock QR code data
-  const qrData = JSON.stringify({
-    eventId: '1',
-    userId: 'user123',
-    ticketId: 'EVT-2025-1128',
-  });
-
-  // Mock upcoming tickets
-  const upcomingTickets = [
-    { id: '1', title: 'Tech Talk: AI Development', dateTime: 'Nov 28, 6:00 PM' },
-    { id: '2', title: 'Spring Cultural Night', dateTime: 'Nov 29, 7:30 PM' },
-    { id: '3', title: 'Startup Pitch Competition', dateTime: 'Nov 30, 5:00 PM', status: 'waitlist' as const },
-  ];
-
-  // Render My QR Code Tab
-  const renderMyQRCode = () => (
-    <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <InfoBanner message="Show your QR code to the event organizer for quick check-in, or scan event QR codes to RSVP instantly." />
-
-      <NextEventCard
-        title="Tech Talk: AI in Modern Development"
-        clubName="Computer Science Club"
-        dateTime="Nov 28, 2025 • 6:00 PM"
-      />
-
-      {/* QR Code Display */}
-      <View style={styles.qrContainer}>
-        <View style={styles.qrCodeWrapper}>
-          <QRCode value={qrData} size={200} />
-        </View>
-        <Text style={styles.ticketId}>Ticket ID: #EVT-2025-1128</Text>
-        <Text style={styles.ticketValidity}>Valid for one-time entry</Text>
-      </View>
-
-      <CheckInInstructions />
-
-      <UpcomingTicketsList tickets={upcomingTickets} />
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionButtonText}>Save to Photos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionButtonText}>Share Ticket</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-
-  // Render Scan QR Tab
-  const renderScanQR = () => {
-    if (!permission) {
-      return (
-        <View style={styles.centered}>
-          <Text>Requesting camera permissions...</Text>
-        </View>
-      );
-    }
-
-    if (!permission.granted) {
-      return (
-        <View style={[styles.centered, { backgroundColor: colors.background }]}>
-          <Text style={[styles.permissionText, { color: colors.text }]}>Camera access is required to scan QR codes.</Text>
-          <TouchableOpacity onPress={requestPermission} style={[styles.permissionButtonContainer, { backgroundColor: colors.primary }]}>
-            <Text style={styles.permissionButton}>Grant Permission</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
+  if (!permission) {
     return (
-      <View style={styles.cameraContainer}>
-        <CameraView
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={handleBarcodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        />
-        <View style={styles.overlay}>
-          <Text style={styles.overlayText}>Align the QR code within the frame</Text>
-        </View>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Requesting camera permissions...</Text>
+        </SafeAreaView>
       </View>
     );
-  };
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={styles.centered}>
+          <Ionicons name="camera-outline" size={64} color={colors.mutedText} />
+          <Text style={[styles.permissionText, { color: colors.text }]}>
+            Camera access is required to scan QR codes for event check-in.
+          </Text>
+          <TouchableOpacity
+            style={[styles.permissionButton, { backgroundColor: colors.primary }]}
+            onPress={requestPermission}
+          >
+            <Text style={styles.permissionButtonText}>Grant Camera Permission</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView>
+    <View style={styles.container}>
+      <CameraView
+        style={StyleSheet.absoluteFillObject}
+        facing="back"
+        onBarcodeScanned={hasScanned ? undefined : handleBarcodeScanned}
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+      />
+      
+      {/* Overlay with scanning frame */}
+      <SafeAreaView style={styles.overlayContainer}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Event Check-in</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.mutedText }]}>Scan QR code or show your ticket</Text>
+          <TouchableOpacity
+            style={[styles.closeButton, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Scanning frame */}
+        <View style={styles.scanFrameContainer}>
+          <View style={styles.scanFrame}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
         </View>
 
-        {/* Tab Buttons */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'myqr' && styles.activeTab, { backgroundColor: colors.card, borderColor: activeTab === 'myqr' ? colors.primary : colors.border }]}
-            onPress={() => setActiveTab('myqr')}
-          >
-            <Text style={[styles.tabText, activeTab === 'myqr' && styles.activeTabText, { color: activeTab === 'myqr' ? colors.text : colors.mutedText }]}>
-              My QR Code
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'scan' && styles.activeTab, { backgroundColor: colors.card, borderColor: activeTab === 'scan' ? colors.primary : colors.border }]}
-            onPress={() => setActiveTab('scan')}
-          >
-            <Text style={[styles.tabText, activeTab === 'scan' && styles.activeTabText, { color: activeTab === 'scan' ? colors.text : colors.mutedText }]}>
-              Scan QR
-            </Text>
-          </TouchableOpacity>
+        {/* Instructions */}
+        <View style={styles.instructionsContainer}>
+          {isProcessing ? (
+            <View style={styles.processingContainer}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.instructionsText}>Processing check-in...</Text>
+            </View>
+          ) : hasScanned ? (
+            <View style={styles.scannedContainer}>
+              <Ionicons name="checkmark-circle" size={48} color="#22C55E" />
+              <Text style={styles.instructionsText}>QR Code Scanned!</Text>
+            </View>
+          ) : (
+            <View style={styles.instructionsView}>
+              <Text style={styles.instructionsText}>
+                Position the QR code within the frame
+              </Text>
+              <Text style={styles.instructionsSubtext}>
+                Make sure the QR code is clear and well-lit
+              </Text>
+            </View>
+          )}
         </View>
       </SafeAreaView>
-
-      {/* Tab Content */}
-      {activeTab === 'myqr' ? renderMyQRCode() : renderScanQR()}
     </View>
   );
 };
@@ -175,118 +237,125 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1.5,
-  },
-  activeTab: {
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  activeTabText: {
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  qrContainer: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  qrCodeWrapper: {
-    padding: 20,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  ticketId: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  ticketValidity: {
-    fontSize: 13,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  actionButton: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  cameraContainer: {
-    flex: 1,
-  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-  overlay: {
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  overlayContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    padding: 16,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanFrameContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanFrame: {
+    width: 250,
+    height: 250,
+    position: 'relative',
+  },
+  corner: {
     position: 'absolute',
-    bottom: 60,
-    width: '100%',
+    width: 30,
+    height: 30,
+    borderColor: '#fff',
+  },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 8,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 8,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 8,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 8,
+  },
+  instructionsContainer: {
+    padding: 24,
     alignItems: 'center',
   },
-  overlayText: {
+  instructionsView: {
+    alignItems: 'center',
+  },
+  processingContainer: {
+    alignItems: 'center',
+  },
+  scannedContainer: {
+    alignItems: 'center',
+  },
+  instructionsText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
+    textAlign: 'center',
+    marginTop: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  instructionsSubtext: {
+    color: '#fff',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    opacity: 0.9,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   permissionText: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  permissionButtonContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    marginBottom: 24,
+    marginTop: 16,
   },
   permissionButton: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  permissionButtonText: {
+    color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
   },
 });
-

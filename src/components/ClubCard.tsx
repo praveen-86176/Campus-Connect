@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
@@ -10,6 +11,7 @@ type Props = {
   onPress: (club: Club) => void;
   category?: string;
   isFollowing?: boolean;
+  onFollowToggle?: (club: Club, isFollowing: boolean) => Promise<void>;
   gradientColors?: string[];
 };
 
@@ -18,8 +20,23 @@ const ClubCardComponent: React.FC<Props> = ({
   onPress,
   category = 'Tech',
   isFollowing = false,
+  onFollowToggle,
   gradientColors = ['#1E90FF', '#00CED1']
 }) => {
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const handleFollowToggle = async () => {
+    if (!onFollowToggle) return;
+    
+    setIsLoading(true);
+    try {
+      await onFollowToggle(club, isFollowing);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update club membership');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <View style={styles.cardContainer}>
       {/* Gradient Header with People Icon */}
@@ -58,10 +75,16 @@ const ClubCardComponent: React.FC<Props> = ({
         {/* Action Buttons */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.followButton, isFollowing && styles.followingButton]}
+            style={[
+              styles.followButton, 
+              isFollowing && styles.followingButton,
+              isLoading && styles.followButtonDisabled
+            ]}
+            onPress={handleFollowToggle}
+            disabled={isLoading || !onFollowToggle}
           >
             <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-              {isFollowing ? 'Following' : 'Follow'}
+              {isLoading ? '...' : (isFollowing ? 'Following' : 'Follow')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -84,10 +107,9 @@ const styles = StyleSheet.create({
   cardContainer: {
     backgroundColor: Colors.card,
     borderRadius: 16,
-    padding: 16,
     marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    overflow: 'hidden',
+    width: '100%',
     ...Platform.select({
       web: { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)' },
       default: {
@@ -100,29 +122,32 @@ const styles = StyleSheet.create({
     }),
   },
   gradientHeader: {
-    height: 160,
+    width: '100%',
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: Colors.card,
     justifyContent: 'center',
     alignItems: 'center',
   },
   contentContainer: {
     padding: 16,
+    width: '100%',
   },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    width: '100%',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
     flex: 1,
@@ -130,12 +155,13 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     backgroundColor: Colors.categoryBg,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    flexShrink: 0,
   },
   categoryText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: Colors.categoryText,
   },
@@ -144,6 +170,7 @@ const styles = StyleSheet.create({
     color: Colors.mutedText,
     marginBottom: 12,
     lineHeight: 20,
+    width: '100%',
   },
   memberRow: {
     flexDirection: 'row',
@@ -162,10 +189,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.primary,
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
     alignSelf: 'flex-end',
+    minWidth: 100,
   },
   followingButton: {
     backgroundColor: Colors.primary,
@@ -178,17 +206,22 @@ const styles = StyleSheet.create({
   followingButtonText: {
     color: Colors.textLight,
   },
+  followButtonDisabled: {
+    opacity: 0.6,
+  },
   viewDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
+    width: '100%',
   },
   viewDetailsText: {
     color: Colors.primary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     marginRight: 4,
+    flexShrink: 1,
   },
 });
 

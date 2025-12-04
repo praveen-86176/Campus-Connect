@@ -1,34 +1,37 @@
-import React, { useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Switch, Alert, Linking, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { getColors } from '../constants/colors';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { getColors, Colors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { useCampusData } from '../context/CampusDataContext';
 import { useAuth } from '../context/AuthContext';
+import { RootStackParamList } from '../navigation/types';
+import { pickAndUploadImage, takePhotoAndUpload } from '../services/cloudinaryService';
+
+type ProfileNavProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const ProfileScreen: React.FC = () => {
+    const navigation = useNavigation<ProfileNavProp>();
     const { theme, toggleTheme, isDark } = useTheme();
-    const { user, signOut } = useAuth();
-    const { rsvps, attendance, events } = useCampusData();
+    const { user, signOut, updateUserProfile } = useAuth();
+    const { rsvps, attendance, events, memberships } = useCampusData();
     const colors = getColors(isDark);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-    // Calculate stats
-    const eventsAttended = attendance.filter(a => a.userId === user?.uid && a.checkInAt).length;
+    // Calculate stats (only for students, not admin)
+    const isAdmin = user?.role === 'admin' || user?.role === 'developer';
+    const eventsAttended = isAdmin ? 0 : attendance.filter(a => a.userId === user?.uid && a.checkInAt).length;
 
-    // Unique clubs joined based on RSVPs (approximation)
-    const clubsJoined = new Set(
-        rsvps
-            .filter(r => r.userId === user?.uid)
-            .map(r => {
-                const event = events.find(e => e.id === r.eventId);
-                return event?.clubId;
-            })
-            .filter(Boolean)
-    ).size;
+    // Count clubs joined based on actual memberships (active status) - only for students
+    const clubsJoined = isAdmin ? 0 : memberships.filter(
+        m => m.userId === user?.uid && m.status === 'active'
+    ).length;
 
-    const upcomingEvents = rsvps.filter(r => {
+    const upcomingEvents = isAdmin ? 0 : rsvps.filter(r => {
         if (r.userId !== user?.uid) return false;
         const event = events.find(e => e.id === r.eventId);
         if (!event) return false;
@@ -41,12 +44,50 @@ export const ProfileScreen: React.FC = () => {
     const [eventUpdates, setEventUpdates] = useState(true);
     const [weeklyDigest, setWeeklyDigest] = useState(false);
 
-    const achievements = [
-        { id: '1', icon: 'star', label: 'First Event', unlocked: true, color: '#FEF3C7' },
-        { id: '2', icon: 'calendar', label: '10 Events', unlocked: true, color: '#DBEAFE' },
-        { id: '3', icon: 'people', label: 'Club Joiner', unlocked: true, color: '#E9D5FF' },
-        { id: '4', icon: 'trophy', label: 'Locked', unlocked: false, color: '#F3F4F6' },
-    ];
+    const handleChangePhoto = () => {
+        Alert.alert(
+            'Change Profile Photo',
+            'Choose an option',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Take Photo',
+                    onPress: async () => {
+                        try {
+                            setUploadingPhoto(true);
+                            const result = await takePhotoAndUpload('profile-pictures', true);
+                            if (result) {
+                                await updateUserProfile({ photoURL: result.secureUrl });
+                                Alert.alert('Success', 'Profile picture updated!');
+                            }
+                        } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to upload photo');
+                        } finally {
+                            setUploadingPhoto(false);
+                        }
+                    },
+                },
+                {
+                    text: 'Choose from Library',
+                    onPress: async () => {
+                        try {
+                            setUploadingPhoto(true);
+                            const result = await pickAndUploadImage('profile-pictures', true);
+                            if (result) {
+                                await updateUserProfile({ photoURL: result.secureUrl });
+                                Alert.alert('Success', 'Profile picture updated!');
+                            }
+                        } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to upload photo');
+                        } finally {
+                            setUploadingPhoto(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
 
     const handleSignOut = () => {
         Alert.alert(
@@ -83,9 +124,31 @@ export const ProfileScreen: React.FC = () => {
                         {/* Header Content with Avatar on Left */}
                         <View style={styles.headerContent}>
                             {/* Avatar */}
-                            <View style={styles.avatar}>
-                                <Ionicons name="person" size={56} color={colors.primary} />
-                            </View>
+                            <TouchableOpacity 
+                                style={styles.avatarContainer}
+                                onPress={handleChangePhoto}
+                                disabled={uploadingPhoto}
+                            >
+                                {user?.photoURL ? (
+                                    <Image 
+                                        source={{ uri: user.photoURL }} 
+                                        style={styles.avatarImage}
+                                    />
+                                ) : (
+                                    <View style={styles.avatar}>
+                                        <Ionicons name="person" size={56} color={colors.primary} />
+                                    </View>
+                                )}
+                                {uploadingPhoto ? (
+                                    <View style={styles.uploadingOverlay}>
+                                        <ActivityIndicator color="#FFFFFF" />
+                                    </View>
+                                ) : (
+                                    <View style={styles.editPhotoBadge}>
+                                        <Ionicons name="camera" size={16} color="#FFFFFF" />
+                                    </View>
+                                )}
+                            </TouchableOpacity>
 
                             {/* User Info and Settings */}
                             <View style={styles.userInfoContainer}>
@@ -94,33 +157,38 @@ export const ProfileScreen: React.FC = () => {
                                         <Text style={styles.name}>{user?.name || 'User'}</Text>
                                         <Text style={styles.username}>{user?.email || ''}</Text>
                                     </View>
-                                    <TouchableOpacity style={styles.settingsIcon}>
+                                    <TouchableOpacity 
+                                        style={styles.settingsIcon}
+                                        onPress={() => navigation.navigate('EditProfile')}
+                                    >
                                         <Ionicons name="settings-outline" size={24} color={colors.textLight} />
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         </View>
 
-                        {/* Stats Row */}
-                        <View style={styles.statsContainer}>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{eventsAttended}</Text>
-                                <Text style={styles.statLabel}>Events Attended</Text>
+                        {/* Stats Row - Only show for students, not admin */}
+                        {!isAdmin && (
+                            <View style={styles.statsContainer}>
+                                <View style={styles.statItem}>
+                                    <Text style={styles.statValue}>{eventsAttended}</Text>
+                                    <Text style={styles.statLabel}>Events Attended</Text>
+                                </View>
+                                <View style={styles.statItem}>
+                                    <Text style={styles.statValue}>{clubsJoined}</Text>
+                                    <Text style={styles.statLabel}>Clubs Joined</Text>
+                                </View>
+                                <View style={styles.statItem}>
+                                    <Text style={styles.statValue}>{upcomingEvents}</Text>
+                                    <Text style={styles.statLabel}>Upcoming</Text>
+                                </View>
                             </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{clubsJoined}</Text>
-                                <Text style={styles.statLabel}>Clubs Joined</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{upcomingEvents}</Text>
-                                <Text style={styles.statLabel}>Upcoming</Text>
-                            </View>
-                        </View>
+                        )}
                     </SafeAreaView>
                 </LinearGradient>
 
                 {/* Profile Information */}
-                <View style={[styles.section, { backgroundColor: colors.card }]}>
+                <View style={[styles.section, { backgroundColor: colors.card }]}> 
                     <Text style={[styles.sectionTitle, { color: colors.text }]}>Profile Information</Text>
 
                     <View style={styles.infoRow}>
@@ -131,53 +199,66 @@ export const ProfileScreen: React.FC = () => {
                         </View>
                     </View>
 
-                    <View style={styles.infoRow}>
-                        <Ionicons name="school-outline" size={20} color={colors.mutedText} />
-                        <View style={styles.infoContent}>
-                            <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Major</Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.major || 'Not specified'}</Text>
-                        </View>
-                    </View>
+                    {user?.role === 'admin' ? (
+                        <>
+                            <View style={styles.infoRow}>
+                                <Ionicons name="business-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Institution</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.institution || 'Not specified'}</Text>
+                                </View>
+                            </View>
 
-                    <View style={styles.infoRow}>
-                        <Ionicons name="calendar-outline" size={20} color={colors.mutedText} />
-                        <View style={styles.infoContent}>
-                            <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Graduation Year</Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.graduationYear || 'Not specified'}</Text>
-                        </View>
-                    </View>
+                            <View style={styles.infoRow}>
+                                <Ionicons name="shield-checkmark-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Admin Role</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.adminRole || 'Not specified'}</Text>
+                                </View>
+                            </View>
 
-                    <TouchableOpacity style={[styles.editButton, { borderColor: colors.border }]}>
+                            <View style={styles.infoRow}>
+                                <Ionicons name="card-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>College ID</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.collegeId || 'Not specified'}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <Ionicons name="call-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Phone</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.phone || 'Not specified'}</Text>
+                                </View>
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.infoRow}>
+                                <Ionicons name="school-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Major</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.major || 'Not specified'}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <Ionicons name="calendar-outline" size={20} color={colors.mutedText} />
+                                <View style={styles.infoContent}>
+                                    <Text style={[styles.infoLabel, { color: colors.mutedText }]}>Graduation Year</Text>
+                                    <Text style={[styles.infoValue, { color: colors.text }]}>{user?.graduationYear || 'Not specified'}</Text>
+                                </View>
+                            </View>
+                        </>
+                    )}
+
+                    <TouchableOpacity 
+                        style={[styles.editButton, { borderColor: colors.border }]}
+                        onPress={() => navigation.navigate('EditProfile')}
+                    >
                         <Text style={[styles.editButtonText, { color: colors.text }]}>Edit Profile</Text>
                     </TouchableOpacity>
-                </View>
-
-                {/* Achievements */}
-                <View style={[styles.section, { backgroundColor: colors.card }]}>
-                    <View style={styles.achievementsHeader}>
-                        <View style={styles.achievementsTitleRow}>
-                            <Ionicons name="ribbon" size={20} color="#F59E0B" />
-                            <Text style={[styles.sectionTitle, { color: colors.text, marginLeft: 8 }]}>Achievements</Text>
-                        </View>
-                        <Text style={[styles.achievementsCount, { color: colors.mutedText }]}>4/12</Text>
-                    </View>
-
-                    <View style={styles.achievementsGrid}>
-                        {achievements.map((achievement) => (
-                            <View key={achievement.id} style={styles.achievementItem}>
-                                <View style={[styles.achievementIcon, { backgroundColor: achievement.color }]}>
-                                    <Ionicons
-                                        name={achievement.icon as any}
-                                        size={28}
-                                        color={achievement.unlocked ? colors.primary : colors.mutedText}
-                                    />
-                                </View>
-                                <Text style={[styles.achievementLabel, { color: colors.text }]}>
-                                    {achievement.label}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
                 </View>
 
                 {/* Notification Preferences */}
@@ -247,7 +328,10 @@ export const ProfileScreen: React.FC = () => {
 
                 {/* Settings Menu */}
                 <View style={[styles.section, { backgroundColor: colors.card }]}>
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+                    <TouchableOpacity 
+                        style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                        onPress={() => Alert.alert('Notification Settings', 'Notification preferences are managed in the section above.')}
+                    >
                         <View style={styles.menuItemLeft}>
                             <Ionicons name="notifications-outline" size={22} color={colors.text} />
                             <Text style={[styles.menuItemText, { color: colors.text }]}>Notification Settings</Text>
@@ -255,7 +339,10 @@ export const ProfileScreen: React.FC = () => {
                         <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+                    <TouchableOpacity 
+                        style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                        onPress={() => navigation.navigate('EditProfile')}
+                    >
                         <View style={styles.menuItemLeft}>
                             <Ionicons name="settings-outline" size={22} color={colors.text} />
                             <Text style={[styles.menuItemText, { color: colors.text }]}>Account Settings</Text>
@@ -263,7 +350,22 @@ export const ProfileScreen: React.FC = () => {
                         <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+                    <TouchableOpacity 
+                        style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                        onPress={() => {
+                            Alert.alert(
+                                'Help & Support',
+                                'For support, please contact:\n\nEmail: support@campusconnect.edu\nPhone: (555) 123-4567',
+                                [
+                                    { text: 'OK', style: 'default' },
+                                    { 
+                                        text: 'Send Email', 
+                                        onPress: () => Linking.openURL('mailto:support@campusconnect.edu')
+                                    }
+                                ]
+                            );
+                        }}
+                    >
                         <View style={styles.menuItemLeft}>
                             <Ionicons name="help-circle-outline" size={22} color={colors.text} />
                             <Text style={[styles.menuItemText, { color: colors.text }]}>Help & Support</Text>
@@ -315,6 +417,10 @@ const styles = StyleSheet.create({
         paddingTop: 10,
         marginBottom: 24,
     },
+    avatarContainer: {
+        position: 'relative',
+        marginRight: 16,
+    },
     avatar: {
         width: 100,
         height: 100,
@@ -322,7 +428,36 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+    },
+    avatarImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: '#FFFFFF',
+    },
+    editPhotoBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: '#FFFFFF',
+    },
+    uploadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderRadius: 50,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     userInfoContainer: {
         flex: 1,
@@ -409,42 +544,6 @@ const styles = StyleSheet.create({
     editButtonText: {
         fontSize: 15,
         fontWeight: '600',
-    },
-    achievementsHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    achievementsTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    achievementsCount: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    achievementsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 16,
-    },
-    achievementItem: {
-        width: '22%',
-        alignItems: 'center',
-    },
-    achievementIcon: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    achievementLabel: {
-        fontSize: 12,
-        textAlign: 'center',
-        fontWeight: '500',
     },
     preferenceRow: {
         flexDirection: 'row',

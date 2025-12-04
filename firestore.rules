@@ -1,0 +1,348 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS - SAFE VERSIONS
+    // ============================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Get user data safely
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Check if user document exists
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    
+    // Safe admin check - won't fail if user doc doesn't exist
+    function isAdmin() {
+      return isAuthenticated() && 
+             userExists() &&
+             getUserData().get('role', 'student') == 'admin';
+    }
+    
+    // Safe organizer check
+    function isOrganizer() {
+      return isAuthenticated() && 
+             userExists() &&
+             getUserData().get('role', 'student') == 'organizer';
+    }
+    
+    // Safe Event Manager check
+    function isEventManager() {
+      return isAuthenticated() && 
+             userExists() &&
+             getUserData().get('role', 'student') == 'admin' &&
+             getUserData().get('adminRole', '') == 'Events Manager';
+    }
+    
+    // Check if user has admin-level access (Admin, Organizer, or Event Manager)
+    function hasAdminAccess() {
+      return isAuthenticated() && 
+             userExists() &&
+             (getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+              (getUserData().get('role', 'student') == 'admin' && 
+               getUserData().get('adminRole', '') == 'Events Manager'));
+    }
+    
+    // Safe club member check
+    function isClubMember(clubId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/clubMemberships/$(request.auth.uid + '_' + clubId));
+    }
+    
+    // Safe club leader check
+    function isClubLeader(clubId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/clubMemberships/$(request.auth.uid + '_' + clubId)) &&
+             get(/databases/$(database)/documents/clubMemberships/$(request.auth.uid + '_' + clubId)).data.get('role', 'member') in ['president', 'vice_president', 'coordinator'];
+    }
+    
+    // Check if user has RSVP'd to event
+    function hasRSVP(eventId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/rsvps/$(request.auth.uid + '_' + eventId));
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email.matches('^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$');
+    }
+    
+    // Validate phone format (10 digits)
+    function isValidPhone(phone) {
+      return phone.matches('^[0-9]{10}$');
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    
+    match /users/{userId} {
+      // ALL authenticated users can read ALL user profiles
+      allow read: if isAuthenticated();
+      
+      // Allow listing users
+      allow list: if isAuthenticated();
+      
+      // Users can create their own profile OR admins can create any profile
+      allow create: if isAuthenticated() && (
+                       (request.auth.uid == userId &&
+                        request.resource.data.keys().hasAll(['name', 'email']) &&
+                        request.resource.data.get('role', 'student') == 'student') ||
+                       hasAdminAccess()
+                    );
+      
+      // Users can update their own profile, Admins can update any user
+      allow update: if isOwner(userId) || hasAdminAccess();
+      
+      // Users can delete their own account, Admins can delete any
+      allow delete: if isOwner(userId) || hasAdminAccess();
+    }
+    
+    // ============================================
+    // CLUBS COLLECTION
+    // ============================================
+    
+    match /clubs/{clubId} {
+      // Anyone authenticated can read clubs
+      allow read: if isAuthenticated();
+      
+      // Authenticated users can create clubs
+      allow create: if isAuthenticated();
+      
+      // Club leaders and admins can update clubs
+      allow update: if isAuthenticated();
+      
+      // Admins can delete clubs
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // CLUB MEMBERSHIPS COLLECTION (clubMemberships)
+    // ============================================
+    
+    match /clubMemberships/{membershipId} {
+      // Anyone authenticated can read memberships
+      allow read: if isAuthenticated();
+      
+      // Allow listing all memberships
+      allow list: if isAuthenticated();
+      
+      // Users can create memberships
+      allow create: if isAuthenticated();
+      
+      // Users can update/delete memberships
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // MEMBERSHIPS COLLECTION (alternative name support)
+    // ============================================
+    
+    match /memberships/{membershipId} {
+      // Anyone authenticated can read memberships
+      allow read: if isAuthenticated();
+      
+      // Allow listing all memberships
+      allow list: if isAuthenticated();
+      
+      // Users can create memberships
+      allow create: if isAuthenticated();
+      
+      // Users can update/delete memberships
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // EVENTS COLLECTION
+    // ============================================
+    
+    match /events/{eventId} {
+      // ALL authenticated users can read ALL events
+      allow read: if isAuthenticated();
+      
+      // List all events
+      allow list: if isAuthenticated();
+      
+      // Allow create for users with admin access
+      allow create: if isAuthenticated() && 
+                       userExists() &&
+                       (getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+                        (getUserData().get('role', 'student') == 'admin' && 
+                         getUserData().get('adminRole', '') == 'Events Manager'));
+      
+      // Allow update for event creators and users with admin access
+      allow update: if isAuthenticated() && 
+                       userExists() &&
+                       (resource.data.get('createdById', '') == request.auth.uid ||
+                        getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+                        (getUserData().get('role', 'student') == 'admin' && 
+                         getUserData().get('adminRole', '') == 'Events Manager'));
+      
+      // Allow delete for users with admin access
+      allow delete: if isAuthenticated() && 
+                       userExists() &&
+                       (getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+                        (getUserData().get('role', 'student') == 'admin' && 
+                         getUserData().get('adminRole', '') == 'Events Manager'));
+    }
+    
+    // ============================================
+    // RSVPS COLLECTION
+    // ============================================
+    
+    match /rsvps/{rsvpId} {
+      // ALL authenticated users can read ALL RSVPs
+      allow read: if isAuthenticated();
+      
+      // Allow listing RSVPs
+      allow list: if isAuthenticated();
+      
+      // Users can create their own RSVP
+      allow create: if isAuthenticated();
+      
+      // Users can update their own RSVPs or admins can update any
+      allow update: if isAuthenticated();
+      
+      // Users can delete their own RSVPs or admins can delete any
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // ATTENDANCE COLLECTION
+    // ============================================
+    
+    match /attendance/{attendanceId} {
+      // ALL authenticated users can read attendance
+      allow read: if isAuthenticated();
+      
+      // Allow listing attendance
+      allow list: if isAuthenticated();
+      
+      // Authenticated users can mark attendance
+      allow create: if isAuthenticated();
+      
+      // Users can update attendance records
+      allow update: if isAuthenticated();
+      
+      // Users can delete attendance
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // ============================================
+    
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if isAuthenticated();
+      
+      // Allow listing notifications
+      allow list: if isAuthenticated();
+      
+      // Anyone can create notifications
+      allow create: if isAuthenticated();
+      
+      // Users can update their own notifications
+      allow update: if isAuthenticated();
+      
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // APP SETTINGS COLLECTION
+    // ============================================
+    
+    match /appSettings/{userId} {
+      // Users can read/write their own settings
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ============================================
+    // CERTIFICATES COLLECTION
+    // ============================================
+    
+    match /certificates/{certificateId} {
+      // Anyone authenticated can read certificates
+      allow read: if isAuthenticated();
+      
+      // Allow listing certificates
+      allow list: if isAuthenticated();
+      
+      // Authenticated users can create certificates
+      allow create: if isAuthenticated();
+      
+      // Anyone can update certificates
+      allow update: if isAuthenticated();
+      
+      // Anyone can delete certificates
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // FEEDBACK COLLECTION
+    // ============================================
+    
+    match /feedback/{feedbackId} {
+      // Anyone authenticated can read feedback
+      allow read: if isAuthenticated();
+      
+      // Allow listing feedback
+      allow list: if isAuthenticated();
+      
+      // Users can submit feedback
+      allow create: if isAuthenticated();
+      
+      // Users can update feedback
+      allow update: if isAuthenticated();
+      
+      // Users can delete feedback
+      allow delete: if isAuthenticated();
+    }
+    
+    // ============================================
+    // REPORTS COLLECTION
+    // ============================================
+    
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow list: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+                      userExists() &&
+                      (getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+                       (getUserData().get('role', 'student') == 'admin' && 
+                        getUserData().get('adminRole', '') == 'Events Manager'));
+    }
+    
+    // ============================================
+    // ANALYTICS COLLECTION
+    // ============================================
+    
+    match /analytics/{analyticsId} {
+      allow read: if isAuthenticated();
+      allow list: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+                      userExists() &&
+                      (getUserData().get('role', 'student') in ['admin', 'organizer'] ||
+                       (getUserData().get('role', 'student') == 'admin' && 
+                        getUserData().get('adminRole', '') == 'Events Manager'));
+    }
+  }
+}

@@ -1,5 +1,7 @@
+// Simple, reliable color system for Campus Connect
+
 // Light theme colors
-export const LightColors = {
+const LightTheme = {
   primary: '#0066FF',
   primaryDark: '#0052CC',
   gradientStart: '#4169E1',
@@ -15,10 +17,13 @@ export const LightColors = {
   danger: '#EF4444',
   categoryBg: '#E8F0FE',
   categoryText: '#0066FF',
+  tint: '#0066FF',
+  tabIconDefault: '#6B7280',
+  tabIconSelected: '#0066FF',
 };
 
 // Dark theme colors
-export const DarkColors = {
+const DarkTheme = {
   primary: '#3B82F6',
   primaryDark: '#2563EB',
   gradientStart: '#4169E1',
@@ -34,11 +39,36 @@ export const DarkColors = {
   danger: '#EF4444',
   categoryBg: '#1E3A8A',
   categoryText: '#60A5FA',
+  tint: '#3B82F6',
+  tabIconDefault: '#9CA3AF',
+  tabIconSelected: '#3B82F6',
 };
 
-// Function to get colors based on theme
-export const getColors = (isDark: boolean) => isDark ? DarkColors : LightColors;
+// Main function to get colors based on theme - USE THIS
+export const getColors = (isDark: boolean = false) => {
+  return isDark ? DarkTheme : LightTheme;
+};
 
-// Default export for backward compatibility
-export const Colors = LightColors;
+// Export light theme as default Colors (for backward compatibility)
+export const Colors = LightTheme;
 
+// Export theme colors object (for React Native pattern compatibility)
+export const ThemeColors = {
+  light: LightTheme,
+  dark: DarkTheme,
+};
+
+// Export default colors (light theme)
+export const colors = {
+  primary: LightTheme.primary,
+  secondary: '#5856D6',
+  background: LightTheme.background,
+  text: LightTheme.text,
+  border: LightTheme.border,
+  error: LightTheme.danger,
+  success: LightTheme.success,
+  warning: '#FF9500',
+};
+
+// Default export
+export default Colors;

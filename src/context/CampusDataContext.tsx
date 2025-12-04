@@ -1,152 +1,418 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Club, Event, RSVP, AttendanceRecord, AttendanceStatus, Membership } from '../types';
 import { dataService } from '../services/dataService';
-import { Club, Event, RSVP, AttendanceRecord, AttendanceStatus } from '../types';
-import { storage } from '../services/storage';
-import { mockClubs, mockEvents } from '../constants/mockData';
+import { useAuth } from './AuthContext';
+import { generateAttendanceId, generateMembershipId } from '../utils/idUtils';
 
-const RSVPS_KEY = 'rsvps';
-
-export type CampusDataContextValue = {
-  loading: boolean;
+type CampusDataContextType = {
   clubs: Club[];
   events: Event[];
   rsvps: RSVP[];
   attendance: AttendanceRecord[];
-  refresh: () => Promise<void>;
-  getClubById: (clubId: string) => Club | undefined;
-  getEventsByClub: (clubId: string) => Event[];
+  memberships: Membership[];
   getEventById: (eventId: string) => Event | undefined;
-  upsertRsvp: (rsvp: RSVP) => Promise<void>;
-  getAttendanceForEvent: (eventId: string) => AttendanceRecord[];
-  getAttendanceForUser: (userId: string) => AttendanceRecord[];
+  getEventsByClub: (clubId: string) => Event[];
   getUserAttendanceStatus: (eventId: string, userId: string) => AttendanceStatus;
-  markCheckIn: (userId: string, eventId: string) => Promise<void>;
-  markCheckOut: (userId: string, eventId: string) => Promise<void>;
-  getEventAttendanceAnalytics: (
-    eventId: string
-  ) => { checkedIn: number; checkedOut: number; totalRsvp: number; attendanceRate: number };
+  getEventAttendanceAnalytics: (eventId: string) => {
+    totalRsvps: number;
+    checkedIn: number;
+    checkedOut: number;
+    absent: number;
+  };
+  getAttendanceForEvent: (eventId: string) => AttendanceRecord[];
+  markCheckIn: (eventId: string, userId: string) => Promise<void>;
+  markCheckOut: (eventId: string, userId: string) => Promise<void>;
+  upsertRsvp: (rsvp: RSVP) => Promise<void>;
+  createEvent: (event: Event) => Promise<void>;
+  joinClub: (clubId: string, userId: string) => Promise<void>;
+  leaveClub: (clubId: string, userId: string) => Promise<void>;
+  isUserFollowingClub: (clubId: string, userId: string) => boolean;
+  refreshData: () => Promise<void>;
 };
 
-const CampusDataContext = createContext<CampusDataContextValue | undefined>(undefined);
+const CampusDataContext = createContext<CampusDataContextType | undefined>(undefined);
 
 export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [loading, setLoading] = useState(true);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [rsvps, setRsvps] = useState<RSVP[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const { user, loading } = useAuth();
 
-  const readData = async () => {
-    setLoading(true);
+  const loadData = useCallback(async () => {
     try {
       await dataService.init();
-      const [loadedClubs, loadedEvents, loadedRsvps, loadedAttendance] = await Promise.all([
+      
+      // Load memberships first (may be empty, that's okay)
+      let membershipsData: Membership[] = [];
+      try {
+        membershipsData = await dataService.getMemberships();
+      } catch (membershipError: any) {
+        console.warn('⚠️ Failed to load memberships (may not have permission yet):', membershipError.message);
+        // Continue without memberships - member counts will be 0
+      }
+      
+      const [clubsData, eventsData, rsvpsData, attendanceData] = await Promise.all([
         dataService.getClubs(),
         dataService.getEvents(),
         dataService.getRsvps(),
         dataService.getAttendance(),
       ]);
-      setClubs(loadedClubs);
-      setEvents(loadedEvents);
-      setRsvps(loadedRsvps);
-      setAttendance(loadedAttendance);
+      
+      // Update club member counts based on active memberships
+      const updatedClubs = clubsData.map(club => {
+        const activeMembers = membershipsData.filter(
+          m => m.clubId === club.id && m.status === 'active'
+        ).length;
+        return {
+          ...club,
+          memberCount: activeMembers,
+        };
+      });
+      
+      setClubs(updatedClubs);
+      setEvents(eventsData);
+      setRsvps(rsvpsData);
+      setAttendance(attendanceData);
+      setMemberships(membershipsData);
+      console.log(`✅ Loaded data: ${updatedClubs.length} clubs, ${eventsData.length} events, ${rsvpsData.length} RSVPs, ${membershipsData.length} memberships`);
     } catch (error) {
-      console.warn('Failed to load data', error);
-      Alert.alert('Offline mode', 'Showing cached data while offline.');
-      setClubs(mockClubs);
-      setEvents(mockEvents);
-    } finally {
-      setLoading(false);
+      console.error('❌ Failed to load campus data:', error);
+      // Don't throw - allow app to continue with partial data
     }
-  };
-
-  useEffect(() => {
-    readData();
   }, []);
 
-  const refresh = async () => {
-    await readData();
-  };
+  // Set up real-time listeners for events
+  useEffect(() => {
+    if (!loading && user) {
+      // Initial load
+      loadData();
 
-  const upsertRsvp = async (rsvp: RSVP) => {
-    try {
-      const nextRsvps = [...rsvps.filter((item) => item.eventId !== rsvp.eventId || item.userId !== rsvp.userId), rsvp];
-      setRsvps(nextRsvps);
-      await storage.set(RSVPS_KEY, nextRsvps);
-    } catch (error) {
-      Alert.alert('Error', 'Unable to save RSVP right now.');
+      // Set up real-time listener for events
+      const unsubscribeEvents = dataService.subscribeToEvents((eventsData) => {
+        setEvents(eventsData);
+        console.log(`📅 Real-time update: ${eventsData.length} events`);
+      });
+
+      // Cleanup listener on unmount
+      return () => {
+        if (unsubscribeEvents) {
+          unsubscribeEvents();
+        }
+      };
     }
-  };
+  }, [loading, user, loadData]);
 
-  const getAttendanceForEvent = (eventId: string) => attendance.filter((a) => a.eventId === eventId);
-  const getAttendanceForUser = (userId: string) => attendance.filter((a) => a.userId === userId);
-  const getUserAttendanceStatus = (eventId: string, userId: string): AttendanceStatus => {
-    const rec = attendance.find((a) => a.eventId === eventId && a.userId === userId);
-    if (!rec) return 'absent';
-    if (rec.checkOutAt) return 'checked_out';
-    if (rec.checkInAt) return 'checked_in';
-    return 'absent';
-  };
+  const getEventById = useCallback(
+    (eventId: string): Event | undefined => {
+      return events.find((event) => event.id === eventId);
+    },
+    [events]
+  );
 
-  const saveAttendance = async (next: AttendanceRecord[]) => {
-    setAttendance(next);
-    await dataService.saveAttendance(next);
-  };
+  const getEventsByClub = useCallback(
+    (clubId: string): Event[] => {
+      return events.filter((event) => event.clubId === clubId);
+    },
+    [events]
+  );
 
-  const markCheckIn = async (userId: string, eventId: string) => {
-    const existing = attendance.find((a) => a.eventId === eventId && a.userId === userId);
-    const now = new Date().toISOString();
-    const next = existing
-      ? attendance.map((a) => (a.eventId === eventId && a.userId === userId ? { ...a, checkInAt: now } : a))
-      : [...attendance, { eventId, userId, checkInAt: now }];
-    await saveAttendance(next);
-  };
+  const getUserAttendanceStatus = useCallback(
+    (eventId: string, userId: string): AttendanceStatus => {
+      // Use correct attendance ID format: `${userId}_${eventId}`
+      const attendanceId = generateAttendanceId(userId, eventId);
+      const record = attendance.find(
+        (r) => generateAttendanceId(r.userId, r.eventId) === attendanceId
+      );
+      if (!record) return 'absent';
+      if (record.checkOutAt) return 'checked_out';
+      if (record.checkInAt) return 'checked_in';
+      return 'absent';
+    },
+    [attendance]
+  );
 
-  const markCheckOut = async (userId: string, eventId: string) => {
-    const existing = attendance.find((a) => a.eventId === eventId && a.userId === userId);
-    const now = new Date().toISOString();
-    const next = existing
-      ? attendance.map((a) => (a.eventId === eventId && a.userId === userId ? { ...a, checkOutAt: now } : a))
-      : [...attendance, { eventId, userId, checkOutAt: now }];
-    await saveAttendance(next);
-  };
+  const getEventAttendanceAnalytics = useCallback(
+    (eventId: string) => {
+      const eventRsvps = rsvps.filter((r) => r.eventId === eventId);
+      const eventAttendance = attendance.filter((a) => a.eventId === eventId);
+      const checkedIn = eventAttendance.filter((a) => a.checkInAt && !a.checkOutAt).length;
+      const checkedOut = eventAttendance.filter((a) => a.checkOutAt).length;
+      const absent = eventRsvps.length - checkedIn - checkedOut;
 
-  const getEventAttendanceAnalytics = (eventId: string) => {
-    const records = getAttendanceForEvent(eventId);
-    const checkedIn = records.filter((r) => !!r.checkInAt).length;
-    const checkedOut = records.filter((r) => !!r.checkOutAt).length;
-    const totalRsvp = rsvps.filter((r) => r.eventId === eventId).length;
-    const attendanceRate = totalRsvp === 0 ? 0 : Math.round((checkedIn / totalRsvp) * 100);
-    return { checkedIn, checkedOut, totalRsvp, attendanceRate };
-  };
+      return {
+        totalRsvps: eventRsvps.length,
+        checkedIn,
+        checkedOut,
+        absent: Math.max(0, absent),
+      };
+    },
+    [rsvps, attendance]
+  );
 
-  const value = useMemo<CampusDataContextValue>(() => ({
-    loading,
+  const getAttendanceForEvent = useCallback(
+    (eventId: string): AttendanceRecord[] => {
+      return attendance.filter((record) => record.eventId === eventId);
+    },
+    [attendance]
+  );
+
+  const markCheckIn = useCallback(
+    async (eventId: string, userId: string) => {
+      try {
+        // Use correct attendance ID format: `${userId}_${eventId}`
+        const attendanceId = generateAttendanceId(userId, eventId);
+        const existingRecord = attendance.find(
+          (r) => generateAttendanceId(r.userId, r.eventId) === attendanceId
+        );
+
+        let updatedAttendance: AttendanceRecord[];
+        if (existingRecord) {
+          // Update existing record
+          updatedAttendance = attendance.map((r) => {
+            const rId = generateAttendanceId(r.userId, r.eventId);
+            return rId === attendanceId
+              ? { ...r, checkInAt: new Date().toISOString() }
+              : r;
+          });
+        } else {
+          // Create new record
+          const newRecord: AttendanceRecord = {
+            eventId,
+            userId,
+            checkInAt: new Date().toISOString(),
+          };
+          updatedAttendance = [...attendance, newRecord];
+        }
+
+        setAttendance(updatedAttendance);
+        await dataService.saveAttendance(updatedAttendance);
+      } catch (error) {
+        console.error('Failed to mark check-in:', error);
+        throw error;
+      }
+    },
+    [attendance]
+  );
+
+  const markCheckOut = useCallback(
+    async (eventId: string, userId: string) => {
+      try {
+        // Use correct attendance ID format: `${userId}_${eventId}`
+        const attendanceId = generateAttendanceId(userId, eventId);
+        const updatedAttendance = attendance.map((r) => {
+          const rId = generateAttendanceId(r.userId, r.eventId);
+          return rId === attendanceId
+            ? { ...r, checkOutAt: new Date().toISOString() }
+            : r;
+        });
+
+        setAttendance(updatedAttendance);
+        await dataService.saveAttendance(updatedAttendance);
+      } catch (error) {
+        console.error('Failed to mark check-out:', error);
+        throw error;
+      }
+    },
+    [attendance]
+  );
+
+  const upsertRsvp = useCallback(
+    async (rsvp: RSVP) => {
+      try {
+        const existingIndex = rsvps.findIndex(
+          (r) => r.eventId === rsvp.eventId && r.userId === rsvp.userId
+        );
+
+        let updatedRsvps: RSVP[];
+        if (existingIndex >= 0) {
+          updatedRsvps = rsvps.map((r, index) =>
+            index === existingIndex ? rsvp : r
+          );
+        } else {
+          updatedRsvps = [...rsvps, rsvp];
+        }
+
+        setRsvps(updatedRsvps);
+        await dataService.saveRsvps(updatedRsvps);
+      } catch (error) {
+        console.error('Failed to save RSVP:', error);
+        throw error;
+      }
+    },
+    [rsvps]
+  );
+
+  const refreshData = useCallback(async () => {
+    await loadData();
+  }, [loadData]);
+
+  const createEvent = useCallback(
+    async (event: Event) => {
+      try {
+        // Save to Firestore first
+        await dataService.upsertEvent(event);
+        // Then refresh all data to ensure consistency across all users
+        await loadData();
+      } catch (error) {
+        console.error('Failed to create event:', error);
+        throw error;
+      }
+    },
+    [loadData]
+  );
+
+  const joinClub = useCallback(
+    async (clubId: string, userId: string) => {
+      try {
+        const membershipId = generateMembershipId(userId, clubId);
+        const existingMembership = memberships.find(m => m.id === membershipId);
+        
+        if (existingMembership && existingMembership.status === 'active') {
+          // Already a member
+          return;
+        }
+
+        const newMembership: Membership = {
+          id: membershipId,
+          userId,
+          clubId,
+          role: 'member',
+          joinedAt: new Date(),
+          status: 'active',
+        };
+
+        // Update local state
+        const updatedMemberships = existingMembership
+          ? memberships.map(m => m.id === membershipId ? newMembership : m)
+          : [...memberships, newMembership];
+        
+        setMemberships(updatedMemberships);
+        
+        // Save to Firestore
+        await dataService.saveMembership(newMembership);
+        
+        // Update club member count
+        const updatedClubs = clubs.map(club => {
+          if (club.id === clubId) {
+            const activeMembers = updatedMemberships.filter(
+              m => m.clubId === clubId && m.status === 'active'
+            ).length;
+            return { ...club, memberCount: activeMembers };
+          }
+          return club;
+        });
+        setClubs(updatedClubs);
+        
+        // Update club in Firestore
+        const club = updatedClubs.find(c => c.id === clubId);
+        if (club) {
+          await dataService.upsertClub(club);
+        }
+        
+        console.log(`✅ User ${userId} joined club ${clubId}`);
+      } catch (error) {
+        console.error('Failed to join club:', error);
+        throw error;
+      }
+    },
+    [clubs, memberships]
+  );
+
+  const leaveClub = useCallback(
+    async (clubId: string, userId: string) => {
+      try {
+        const membershipId = generateMembershipId(userId, clubId);
+        const existingMembership = memberships.find(m => m.id === membershipId);
+        
+        if (!existingMembership || existingMembership.status === 'inactive') {
+          // Not a member
+          return;
+        }
+
+        const updatedMembership: Membership = {
+          ...existingMembership,
+          status: 'inactive',
+        };
+
+        // Update local state
+        const updatedMemberships = memberships.map(m => 
+          m.id === membershipId ? updatedMembership : m
+        );
+        setMemberships(updatedMemberships);
+        
+        // Save to Firestore
+        await dataService.saveMembership(updatedMembership);
+        
+        // Update club member count
+        const updatedClubs = clubs.map(club => {
+          if (club.id === clubId) {
+            const activeMembers = updatedMemberships.filter(
+              m => m.clubId === clubId && m.status === 'active'
+            ).length;
+            return { ...club, memberCount: activeMembers };
+          }
+          return club;
+        });
+        setClubs(updatedClubs);
+        
+        // Update club in Firestore
+        const club = updatedClubs.find(c => c.id === clubId);
+        if (club) {
+          await dataService.upsertClub(club);
+        }
+        
+        console.log(`✅ User ${userId} left club ${clubId}`);
+      } catch (error) {
+        console.error('Failed to leave club:', error);
+        throw error;
+      }
+    },
+    [clubs, memberships]
+  );
+
+  const isUserFollowingClub = useCallback(
+    (clubId: string, userId: string): boolean => {
+      const membershipId = generateMembershipId(userId, clubId);
+      const membership = memberships.find(m => m.id === membershipId);
+      return membership?.status === 'active' || false;
+    },
+    [memberships]
+  );
+
+  const value: CampusDataContextType = {
     clubs,
     events,
     rsvps,
     attendance,
-    refresh,
-    getClubById: (clubId) => clubs.find((club) => club.id === clubId),
-    getEventsByClub: (clubId) => events.filter((event) => event.clubId === clubId),
-    getEventById: (eventId) => events.find((event) => event.id === eventId),
-    upsertRsvp,
-    getAttendanceForEvent,
-    getAttendanceForUser,
+    memberships,
+    getEventById,
+    getEventsByClub,
     getUserAttendanceStatus,
+    getEventAttendanceAnalytics,
+    getAttendanceForEvent,
     markCheckIn,
     markCheckOut,
-    getEventAttendanceAnalytics,
-  }), [loading, clubs, events, rsvps, attendance]);
+    upsertRsvp,
+    createEvent,
+    joinClub,
+    leaveClub,
+    isUserFollowingClub,
+    refreshData,
+  };
 
-  return <CampusDataContext.Provider value={value}>{children}</CampusDataContext.Provider>;
+  return (
+    <CampusDataContext.Provider value={value}>
+      {children}
+    </CampusDataContext.Provider>
+  );
 };
 
-export const useCampusData = () => {
+export const useCampusData = (): CampusDataContextType => {
   const context = useContext(CampusDataContext);
-  if (!context) {
-    throw new Error('useCampusData must be used within CampusDataProvider');
+  if (context === undefined) {
+    throw new Error('useCampusData must be used within a CampusDataProvider');
   }
   return context;
 };

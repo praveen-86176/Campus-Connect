@@ -16,4 +16,5 @@ export type RootStackParamList = {
   QRScanner: undefined;
   AttendanceReport: { eventId: string };
   Certificate: { eventId: string };
+  EditProfile: undefined;
 };
