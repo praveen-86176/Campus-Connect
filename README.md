@@ -735,20 +735,6 @@ LinkedIn: [Praveen Kumar](https://linkedin.com/in/kumar-praveen-a914a2326/)
 
 ---
 
-
-## 📸 Screenshots
-
-<p align="center">
-  <img src="assets/screenshots/home.png" width="200" alt="Home Screen"/>
-  <img src="assets/screenshots/clubs.png" width="200" alt="Clubs List"/>
-  <img src="assets/screenshots/event-details.png" width="200" alt="Event Details"/>
-  <img src="assets/screenshots/qr-scanner.png" width="200" alt="QR Scanner"/>
-</p>
-
----
-
-
-
 ## 📚 Additional Resources
 
 - [React Native Documentation](https://reactnative.dev/docs/getting-started)
