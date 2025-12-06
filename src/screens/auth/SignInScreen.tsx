@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { validateEmail } from '../../utils/validation';
+import { validateEmail, normalizeEmail, getFirebaseAuthErrorMessage } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type SignInNavProp = NativeStackNavigationProp<AuthStackParamList, 'SignIn'>;
@@ -18,8 +18,8 @@ export const SignInScreen: React.FC = () => {
     const navigation = useNavigation<SignInNavProp>();
     const route = useRoute<SignInRouteProp>();
     const { signIn } = useAuth();
-    const { isDark } = useTheme();
-    const colors = getColors(isDark);
+    // Always use light mode for sign in page
+    const colors = getColors(false);
     
     const selectedRole = route.params?.selectedRole;
 
@@ -27,6 +27,41 @@ export const SignInScreen: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
+
+    // Load saved email on mount
+    useEffect(() => {
+        loadRememberedEmail();
+    }, []);
+
+    const loadRememberedEmail = async () => {
+        try {
+            const savedEmail = await AsyncStorage.getItem('remembered_email');
+            const isRemembered = await AsyncStorage.getItem('remember_me');
+            
+            if (savedEmail && isRemembered === 'true') {
+                setEmail(savedEmail);
+                setRememberMe(true);
+            }
+        } catch (error) {
+            console.error('Error loading remembered email:', error);
+        }
+    };
+
+    const handleRememberMeToggle = async () => {
+        const newValue = !rememberMe;
+        setRememberMe(newValue);
+        
+        // If unchecking, clear saved email immediately
+        if (!newValue) {
+            try {
+                await AsyncStorage.removeItem('remembered_email');
+                await AsyncStorage.removeItem('remember_me');
+            } catch (error) {
+                console.error('Error clearing remembered email:', error);
+            }
+        }
+    };
 
     const handleSignIn = async () => {
         // Validation
@@ -35,17 +70,39 @@ export const SignInScreen: React.FC = () => {
             return;
         }
 
-        if (!validateEmail(email)) {
+        // Normalize email (trim and lowercase)
+        const normalizedEmail = normalizeEmail(email);
+        
+        if (!normalizedEmail || !validateEmail(normalizedEmail)) {
             Alert.alert('Error', 'Please enter a valid email address');
+            return;
+        }
+
+        if (!password.trim()) {
+            Alert.alert('Error', 'Please enter your password');
             return;
         }
 
         setLoading(true);
         try {
-            await signIn(email, password);
+            // Use normalized email for sign in
+            await signIn(normalizedEmail, password);
+            
+            // Handle remember me functionality
+            if (rememberMe) {
+                // Save email for next time
+                await AsyncStorage.setItem('remembered_email', normalizedEmail);
+                await AsyncStorage.setItem('remember_me', 'true');
+            } else {
+                // Clear saved email if remember me is unchecked
+                await AsyncStorage.removeItem('remembered_email');
+                await AsyncStorage.removeItem('remember_me');
+            }
+            
             // Navigation handled by AuthContext state change
         } catch (error: any) {
-            Alert.alert('Sign In Failed', error.message || 'Please check your credentials and try again');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            Alert.alert('Sign In Failed', friendlyMessage);
         } finally {
             setLoading(false);
         }
@@ -66,6 +123,12 @@ export const SignInScreen: React.FC = () => {
                 >
                     <SafeAreaView edges={['top']}>
                         <View style={styles.headerContent}>
+                            <TouchableOpacity 
+                                onPress={() => navigation.goBack()} 
+                                style={styles.backButton}
+                            >
+                                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                            </TouchableOpacity>
                             <Text style={styles.title}>Welcome Back!</Text>
                             <Text style={styles.subtitle}>Sign in to continue to Campus Connect</Text>
                         </View>
@@ -150,10 +213,19 @@ export const SignInScreen: React.FC = () => {
                     <View style={styles.rememberMeContainer}>
                         <TouchableOpacity
                             style={styles.checkboxContainer}
-                            onPress={() => {}}
+                            onPress={handleRememberMeToggle}
+                            activeOpacity={0.7}
                         >
-                            <View style={[styles.checkbox, { borderColor: colors.border }]}>
-                                <Ionicons name="checkmark" size={16} color={colors.primary} style={{ opacity: 0 }} />
+                            <View style={[
+                                styles.checkbox, 
+                                { 
+                                    borderColor: rememberMe ? colors.primary : colors.border,
+                                    backgroundColor: rememberMe ? colors.primary : 'transparent'
+                                }
+                            ]}>
+                                {rememberMe && (
+                                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                                )}
                             </View>
                             <Text style={[styles.checkboxLabel, { color: colors.text }]}>Remember me</Text>
                         </TouchableOpacity>
@@ -197,6 +269,9 @@ const styles = StyleSheet.create({
     headerContent: {
         paddingHorizontal: 20,
         paddingTop: 20,
+    },
+    backButton: {
+        marginBottom: 16,
     },
     title: {
         fontSize: 32,

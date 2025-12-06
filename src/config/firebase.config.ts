@@ -15,7 +15,6 @@ import {
     EXPO_PUBLIC_FIREBASE_IOS_APP_ID,
 } from '../constants/creds';
 
-// TODO: Replace with your Firebase project configuration
 const firebaseConfig = {
     apiKey: EXPO_PUBLIC_FIREBASE_API_KEY,
     authDomain: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,

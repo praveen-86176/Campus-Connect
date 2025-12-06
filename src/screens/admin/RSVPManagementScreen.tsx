@@ -8,13 +8,15 @@ import { getColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 import { useCampusData } from '../../context/CampusDataContext';
 
-type RSVPManagementNavProp = NativeStackNavigationProp<any>;
+import { AdminStackParamList } from '../../navigation/types';
+
+type RSVPManagementNavProp = NativeStackNavigationProp<AdminStackParamList>;
 
 export const RSVPManagementScreen: React.FC = () => {
   const navigation = useNavigation<RSVPManagementNavProp>();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
-  const { rsvps, events, refreshData } = useCampusData();
+  const { rsvps, events, attendance, refreshData, getUserAttendanceStatus } = useCampusData();
   const [refreshing, setRefreshing] = useState(false);
   const [lastRsvpCount, setLastRsvpCount] = useState(rsvps.length);
   
@@ -30,9 +32,10 @@ export const RSVPManagementScreen: React.FC = () => {
         rsvp.email.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesEvent = eventFilter === 'all' || rsvp.eventId === eventFilter;
+      const attendanceStatus = getUserAttendanceStatus(rsvp.eventId, rsvp.userId);
       const matchesStatus = statusFilter === 'all' || 
-        (statusFilter === 'registered' && !rsvp.attended) ||
-        (statusFilter === 'attended' && rsvp.attended);
+        (statusFilter === 'registered' && attendanceStatus === 'absent') ||
+        (statusFilter === 'attended' && (attendanceStatus === 'checked_in' || attendanceStatus === 'checked_out'));
       
       return matchesSearch && matchesEvent && matchesStatus;
     });
@@ -67,8 +70,14 @@ export const RSVPManagementScreen: React.FC = () => {
   }, [refreshData]);
 
   const totalRsvps = rsvps.length;
-  const registeredCount = rsvps.filter(r => !r.attended).length;
-  const attendedCount = rsvps.filter(r => r.attended).length;
+  const registeredCount = rsvps.filter(r => {
+    const status = getUserAttendanceStatus(r.eventId, r.userId);
+    return status === 'absent';
+  }).length;
+  const attendedCount = rsvps.filter(r => {
+    const status = getUserAttendanceStatus(r.eventId, r.userId);
+    return status === 'checked_in' || status === 'checked_out';
+  }).length;
   const newRsvps = rsvps.length > lastRsvpCount ? rsvps.length - lastRsvpCount : 0;
 
   return (
@@ -221,16 +230,42 @@ export const RSVPManagementScreen: React.FC = () => {
                     </Text>
                   </View>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: rsvp.attended ? '#10B98120' : '#3B82F620' }]}>
-                  <Ionicons 
-                    name={rsvp.attended ? "checkmark-circle" : "time-outline"} 
-                    size={16} 
-                    color={rsvp.attended ? '#10B981' : '#3B82F6'} 
-                  />
-                  <Text style={[styles.statusText, { color: rsvp.attended ? '#10B981' : '#3B82F6' }]}>
-                    {rsvp.attended ? 'Attended' : 'Registered'}
-                  </Text>
-                </View>
+                {(() => {
+                  const attendanceStatus = getUserAttendanceStatus(rsvp.eventId, rsvp.userId);
+                  const isAttended = attendanceStatus === 'checked_in' || attendanceStatus === 'checked_out';
+                  const isCheckedIn = attendanceStatus === 'checked_in';
+                  const isCheckedOut = attendanceStatus === 'checked_out';
+                  
+                  let statusText = 'Registered';
+                  let statusColor = '#3B82F6';
+                  let statusBgColor = '#3B82F620';
+                  let iconName = 'time-outline';
+                  
+                  if (isCheckedOut) {
+                    statusText = 'Checked Out';
+                    statusColor = '#8B5CF6';
+                    statusBgColor = '#8B5CF620';
+                    iconName = 'checkmark-done-circle';
+                  } else if (isCheckedIn) {
+                    statusText = 'Checked In';
+                    statusColor = '#10B981';
+                    statusBgColor = '#10B98120';
+                    iconName = 'log-in';
+                  }
+                  
+                  return (
+                    <View style={[styles.statusBadge, { backgroundColor: statusBgColor }]}>
+                      <Ionicons 
+                        name={iconName as any} 
+                        size={16} 
+                        color={statusColor} 
+                      />
+                      <Text style={[styles.statusText, { color: statusColor }]}>
+                        {statusText}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               
               <View style={styles.eventInfo}>

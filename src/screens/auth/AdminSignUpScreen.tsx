@@ -8,8 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { validateEmail, validatePassword, validateName, passwordsMatch } from '../../utils/validation';
+import { validateEmail, validatePassword, validateName, passwordsMatch, validatePhone, formatPhoneInput, normalizeEmail, getFirebaseAuthErrorMessage } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type AdminSignUpNavProp = NativeStackNavigationProp<AuthStackParamList, 'AdminSignUp'>;
@@ -19,8 +18,8 @@ const ADMIN_ROLES = ['Club Coordinator', 'Events Manager', 'Campus Administrator
 export const AdminSignUpScreen: React.FC = () => {
     const navigation = useNavigation<AdminSignUpNavProp>();
     const { signUp, updateUserProfile } = useAuth();
-    const { isDark } = useTheme();
-    const colors = getColors(isDark);
+    // Always use light mode for sign up page
+    const colors = getColors(false);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -57,7 +56,10 @@ export const AdminSignUpScreen: React.FC = () => {
             return;
         }
 
-        if (!validateEmail(email)) {
+        // Normalize email (trim and lowercase)
+        const normalizedEmail = normalizeEmail(email);
+        
+        if (!normalizedEmail || !validateEmail(normalizedEmail)) {
             Alert.alert('Error', 'Please enter a valid email address');
             return;
         }
@@ -65,6 +67,12 @@ export const AdminSignUpScreen: React.FC = () => {
         const passwordValidation = validatePassword(password);
         if (!passwordValidation.valid) {
             Alert.alert('Error', passwordValidation.message || 'Invalid password');
+            return;
+        }
+
+        // Validate phone number - must be exactly 10 digits
+        if (!validatePhone(phone)) {
+            Alert.alert('Error', 'Please enter a valid 10-digit phone number (numbers only)');
             return;
         }
 
@@ -80,16 +88,18 @@ export const AdminSignUpScreen: React.FC = () => {
 
         setLoading(true);
         try {
-            await signUp(email, password, {
-                name,
-                phone,
-                institution,
+            // Use normalized email for sign up
+            await signUp(normalizedEmail, password, {
+                name: name.trim(),
+                phone: phone.trim(),
+                institution: institution.trim(),
                 adminRole: adminRole as 'Club Coordinator' | 'Events Manager' | 'Campus Administrator',
-                collegeId,
+                collegeId: collegeId.trim(),
                 role: 'admin',
             });
         } catch (error: any) {
-            Alert.alert('Sign Up Failed', error.message || 'Please try again');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            Alert.alert('Sign Up Failed', friendlyMessage);
         } finally {
             setLoading(false);
         }
@@ -257,13 +267,19 @@ export const AdminSignUpScreen: React.FC = () => {
                             <Ionicons name="call-outline" size={20} color={colors.mutedText} style={styles.inputIcon} />
                             <TextInput
                                 style={[styles.input, { color: colors.text }]}
-                                placeholder="+1 234 567 8900"
+                                placeholder="1234567890"
                                 placeholderTextColor={colors.mutedText}
                                 value={phone}
-                                onChangeText={setPhone}
+                                onChangeText={(text) => setPhone(formatPhoneInput(text))}
                                 keyboardType="phone-pad"
+                                maxLength={10}
                             />
                         </View>
+                        {phone.length > 0 && phone.length < 10 && (
+                            <Text style={[styles.helperText, { color: colors.mutedText }]}>
+                                {10 - phone.length} digit{10 - phone.length !== 1 ? 's' : ''} remaining
+                            </Text>
+                        )}
                     </View>
 
                     <View style={styles.inputContainer}>
@@ -465,5 +481,11 @@ const styles = StyleSheet.create({
     signInLink: {
         fontSize: 15,
         fontWeight: '700',
+    },
+    helperText: {
+        fontSize: 12,
+        marginTop: -10,
+        marginBottom: 14,
+        marginLeft: 4,
     },
 });

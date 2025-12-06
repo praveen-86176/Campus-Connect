@@ -17,9 +17,14 @@ import { EventDetailsScreen } from '../screens/EventDetailsScreen';
 import { UserManagementScreen } from '../screens/admin/UserManagementScreen';
 import { RSVPManagementScreen } from '../screens/admin/RSVPManagementScreen';
 import { AnalyticsScreen } from '../screens/admin/AnalyticsScreen';
+import { EditProfileScreen } from '../screens/EditProfileScreen';
+import { QRScannerScreen } from '../screens/QRScannerScreen';
+import { AttendanceReportScreen } from '../screens/AttendanceReportScreen';
+import { RecentActivityScreen } from '../screens/admin/RecentActivityScreen';
+import { AdminTabsParamList, AdminStackParamList } from './types';
 
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator<AdminTabsParamList>();
+const Stack = createNativeStackNavigator<AdminStackParamList>();
 
 const AdminTabs = () => {
   const { isDark } = useTheme();
@@ -27,6 +32,7 @@ const AdminTabs = () => {
 
   return (
     <Tab.Navigator
+      id="AdminTabs"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -70,6 +76,7 @@ export const AdminDashboardNavigator = () => {
 
   return (
     <Stack.Navigator
+      id="AdminStack"
       screenOptions={{
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
@@ -83,9 +90,13 @@ export const AdminDashboardNavigator = () => {
       <Stack.Screen name="CreateEvent" component={CreateEventScreen} options={{ title: 'Create Event' }} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} options={{ title: 'Edit Event' }} />
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: 'Event Details' }} />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ title: 'Scan QR Code' }} />
+      <Stack.Screen name="AttendanceReport" component={AttendanceReportScreen} options={{ title: 'Attendance Report' }} />
       <Stack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: 'User Management' }} />
       <Stack.Screen name="RSVPManagement" component={RSVPManagementScreen} options={{ title: 'RSVP Management' }} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: 'Analytics & Reports' }} />
+      <Stack.Screen name="RecentActivity" component={RecentActivityScreen} options={{ title: 'Recent Activity' }} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
     </Stack.Navigator>
   );
 };

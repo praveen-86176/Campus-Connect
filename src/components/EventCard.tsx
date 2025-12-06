@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,36 +13,59 @@ type Props = {
 
 const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
   const { clubs } = useCampusData();
+  const [imageError, setImageError] = React.useState(false);
   
   // Get club name from real data
   const club = clubs.find(c => c.id === event.clubId);
   const clubName = club?.name || 'Club';
   const category = event.category || 'Event';
 
+  // Track current image URL to reset error state only when image changes
+  const currentImageUrl = React.useRef<string | undefined>(event.image?.trim());
+  
+  // Reset image error state when event image changes
+  React.useEffect(() => {
+    const newImageUrl = event.image?.trim();
+    if (currentImageUrl.current !== newImageUrl) {
+      currentImageUrl.current = newImageUrl;
+      setImageError(false);
+    }
+  }, [event.image]);
+
+  // Image validation - matches CreateEventScreen logic
+  // Image is saved as: image && image.trim() !== '' ? image.trim() : ''
+  const hasValidImage = React.useMemo(() => {
+    const imageValue = event.image;
+    
+    // Use same logic as CreateEventScreen: check if image exists and is not empty
+    // Image from Firestore should be a string (empty string if no image)
+    return imageValue && 
+           typeof imageValue === 'string' && 
+           imageValue.trim() !== '';
+  }, [event.image]);
+
   return (
     <View style={styles.cardContainer}>
       {/* Event Image or Gradient Header with Calendar Icon */}
-      {event.image && event.image.trim() !== '' ? (
+      {hasValidImage && !imageError ? (
         <Image
-          source={{ uri: event.image }}
+          key={event.image?.trim()} // Force remount when image URL changes
+          source={{ uri: event.image?.trim() }}
           style={styles.eventImage}
           resizeMode="cover"
-          onError={(error) => {
-            console.error('❌ Failed to load event image:', event.image, error.nativeEvent.error);
-          }}
-          onLoad={() => {
-            console.log('✅ Event image loaded successfully:', event.image);
+          onError={() => {
+            setImageError(true);
           }}
         />
       ) : (
-        <LinearGradient
-          colors={['#6B9FFF', '#A78BFA']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientHeader}
-        >
-          <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
-        </LinearGradient>
+      <LinearGradient
+        colors={['#6B9FFF', '#A78BFA']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientHeader}
+      >
+        <Ionicons name="calendar-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
+      </LinearGradient>
       )}
 
       {/* Event Details */}
@@ -52,9 +75,9 @@ const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
             {event.title}
           </Text>
           {category && (
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryText}>{category}</Text>
-            </View>
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>{category}</Text>
+          </View>
           )}
         </View>
 
@@ -72,8 +95,16 @@ const EventCardComponent: React.FC<Props> = ({ event, onPress }) => {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="location" size={16} color={Colors.mutedText} />
-          <Text style={styles.infoText}>{event.location}</Text>
+          <Ionicons 
+            name={event.category === 'Online' ? "videocam" : "location"} 
+            size={16} 
+            color={Colors.mutedText} 
+          />
+          <Text style={styles.infoText}>
+            {event.category === 'Online' && event.meetingPlatform 
+              ? `Online - ${event.meetingPlatform}` 
+              : event.location}
+          </Text>
         </View>
 
         <View style={styles.infoRow}>
@@ -121,6 +152,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     backgroundColor: Colors.card,
+    // Ensure image is visible
+    opacity: 1,
   },
   contentContainer: {
     padding: 16,

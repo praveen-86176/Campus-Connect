@@ -128,7 +128,6 @@ CampusConnect/
 │   │
 │   ├── 📁 constants/            # App-wide constants
 │   │   ├── colors.js
-│   │   ├── mockData.js
 │   │   └── config.js
 │   │
 │   ├── 📁 types/                # TypeScript types/interfaces

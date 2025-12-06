@@ -390,7 +390,8 @@ export const adminService = {
 
       // Calculate analytics
       const totalUsers = users.length;
-      const activeUsers = users.filter(u => !u.role || u.role !== 'inactive').length;
+      // Users with a role are considered active (inactive is not a valid UserRole)
+      const activeUsers = users.filter(u => u.role !== undefined).length;
       const totalClubs = clubsData.length;
       const activeClubs = clubsData.filter((c: any) => c.isVerified).length;
       const totalEvents = eventsData.length;

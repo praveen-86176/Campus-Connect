@@ -7,8 +7,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { validateEmail, validatePassword, validateName, passwordsMatch } from '../../utils/validation';
+import { validateEmail, validatePassword, validateName, passwordsMatch, normalizeEmail, getFirebaseAuthErrorMessage } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type SignUpNavProp = NativeStackNavigationProp<AuthStackParamList, 'SignUp'>;
@@ -18,8 +17,8 @@ export const SignUpScreen: React.FC = () => {
     const navigation = useNavigation<SignUpNavProp>();
     const route = useRoute<SignUpRouteProp>();
     const { signUp } = useAuth();
-    const { isDark } = useTheme();
-    const colors = getColors(isDark);
+    // Always use light mode for sign up page
+    const colors = getColors(false);
     
     const selectedRole = route.params?.selectedRole || 'student';
 
@@ -41,11 +40,14 @@ export const SignUpScreen: React.FC = () => {
         }
 
         if (!validateName(name)) {
-            Alert.alert('Error', 'Please enter a valid name (at least 2 characters)');
+            Alert.alert('Error', 'Please enter a valid name (at least 2 characters, letters only)');
             return;
         }
 
-        if (!validateEmail(email)) {
+        // Normalize email (trim and lowercase)
+        const normalizedEmail = normalizeEmail(email);
+        
+        if (!normalizedEmail || !validateEmail(normalizedEmail)) {
             Alert.alert('Error', 'Please enter a valid email address');
             return;
         }
@@ -63,15 +65,17 @@ export const SignUpScreen: React.FC = () => {
 
         setLoading(true);
         try {
-            await signUp(email, password, {
-                name,
-                major,
-                graduationYear,
+            // Use normalized email for sign up
+            await signUp(normalizedEmail, password, {
+                name: name.trim(),
+                major: major.trim(),
+                graduationYear: graduationYear.trim(),
                 role: selectedRole,
             });
             // Navigation handled by AuthContext state change
         } catch (error: any) {
-            Alert.alert('Sign Up Failed', error.message || 'Please try again');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            Alert.alert('Sign Up Failed', friendlyMessage);
         } finally {
             setLoading(false);
         }

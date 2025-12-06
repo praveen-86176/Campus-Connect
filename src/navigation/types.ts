@@ -4,7 +4,6 @@ export type MainTabsParamList = {
   Home: undefined;
   Clubs: undefined;
   MyRsvps: undefined;
-  CheckIn: undefined;
   Profile: undefined;
 };
 
@@ -13,8 +12,34 @@ export type RootStackParamList = {
   EventsList: { clubId: string; clubName?: string };
   EventDetails: { eventId: string };
   RSVPForm: { eventId: string };
-  QRScanner: undefined;
+  RSVPQRCode: { rsvpId: string; eventId?: string };
+  QRScanner: { eventId?: string };
   AttendanceReport: { eventId: string };
   Certificate: { eventId: string };
+  EditProfile: undefined;
+  Notifications: undefined;
+};
+
+export type AdminTabsParamList = {
+  Home: undefined;
+  Clubs: undefined;
+  Events: undefined;
+  Profile: undefined;
+};
+
+export type AdminStackParamList = {
+  AdminTabs: NavigatorScreenParams<AdminTabsParamList>;
+  CreateClub: undefined;
+  EditClub: { clubId: string };
+  ClubDetails: { clubId: string };
+  CreateEvent: undefined;
+  EditEvent: { eventId: string };
+  EventDetails: { eventId: string };
+  QRScanner: { eventId?: string };
+  AttendanceReport: { eventId: string };
+  UserManagement: undefined;
+  RSVPManagement: undefined;
+  Analytics: undefined;
+  RecentActivity: undefined;
   EditProfile: undefined;
 };

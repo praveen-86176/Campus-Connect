@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { getColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,15 +13,19 @@ import { useAuth } from '../../context/AuthContext';
 import { useCampusData } from '../../context/CampusDataContext';
 import { adminService } from '../../services/adminService';
 import { dataService } from '../../services/dataService';
+import { AdminStackParamList, AdminTabsParamList } from '../../navigation/types';
 
 const screenWidth = Dimensions.get('window').width;
 
-type AdminDashboardNavProp = NativeStackNavigationProp<any>;
+type AdminDashboardNavProp = CompositeNavigationProp<
+  BottomTabNavigationProp<AdminTabsParamList, 'Home'>,
+  NativeStackNavigationProp<AdminStackParamList>
+>;
 
 export const AdminDashboardHomeScreen: React.FC = () => {
   const navigation = useNavigation<AdminDashboardNavProp>();
   const { user } = useAuth();
-  const { clubs, events, rsvps, attendance, memberships, refreshData } = useCampusData();
+  const { clubs, events, rsvps, attendance, memberships, refreshData, getEventAttendanceAnalytics } = useCampusData();
   const { isDark } = useTheme();
   
   // Initialize colors immediately with a default value, then memoize
@@ -103,22 +108,30 @@ export const AdminDashboardHomeScreen: React.FC = () => {
   const totalEvents = events.length;
   const upcomingEvents = events.filter(e => e.status === 'Upcoming' || e.status === 'Published').length;
   const totalRsvps = rsvps.length;
-  const confirmedRsvps = rsvps.filter(r => !r.attended).length; // RSVPs that are registered but not yet attended
+  // Calculate attended members using attendance records
+  const attendedMembers = useMemo(() => {
+    return attendance.filter(a => a.checkInAt).length;
+  }, [attendance]);
+  
+  const checkedOutMembers = useMemo(() => {
+    return attendance.filter(a => a.checkOutAt).length;
+  }, [attendance]);
+  
+  const checkedInMembers = useMemo(() => {
+    return attendance.filter(a => a.checkInAt && !a.checkOutAt).length;
+  }, [attendance]);
 
   // Calculate growth percentage
   const userGrowth = previousUsers > 0 
     ? ((totalUsers - previousUsers) / previousUsers * 100).toFixed(1)
     : '0';
 
-  // Line Chart Data: Event RSVPs - Only show events with registered RSVPs
+  // Line Chart Data: Event RSVPs - Show number of RSVPs per event
   const rsvpChartData = useMemo(() => {
-    // Get all events and filter to only those with registered RSVPs (in use)
+    // Get all events with RSVPs
     const eventsWithRsvps = events.filter(event => {
-      const eventRsvps = rsvps.filter(r => 
-        r.eventId === event.id && 
-        !r.attended // Only registered RSVPs (not yet attended)
-      );
-      return eventRsvps.length > 0; // Only events with registered RSVPs
+      const eventRsvps = rsvps.filter(r => r.eventId === event.id);
+      return eventRsvps.length > 0;
     });
     
     // Sort by creation date (newest first) and limit to 10 for better visibility
@@ -134,13 +147,10 @@ export const AdminDashboardHomeScreen: React.FC = () => {
     const labels: string[] = [];
     
     recentEvents.forEach(event => {
-      // Count RSVPs for this event (only registered - not yet attended)
-      const eventRsvps = rsvps.filter(r => 
-        r.eventId === event.id && 
-        !r.attended // Only registered RSVPs (not yet attended)
-      ).length;
+      // Count RSVPs for this event
+      const eventRsvpCount = rsvps.filter(r => r.eventId === event.id).length;
       
-      data.push(eventRsvps);
+      data.push(eventRsvpCount);
       
       // Truncate event title for label
       const eventLabel = event.title.length > 12 
@@ -197,7 +207,7 @@ export const AdminDashboardHomeScreen: React.FC = () => {
     const activities: any[] = [];
     
     // Recent events
-    events.slice(0, 3).forEach(event => {
+    events.slice(0, 2).forEach(event => {
       activities.push({
         id: `event-${event.id}`,
         type: 'event',
@@ -208,23 +218,59 @@ export const AdminDashboardHomeScreen: React.FC = () => {
       });
     });
     
-    // Recent RSVPs
-    rsvps.slice(0, 3).forEach(rsvp => {
-      activities.push({
-        id: `rsvp-${rsvp.id}`,
-        type: 'rsvp',
-        title: `${rsvp.userName} registered for an event`,
-        timestamp: rsvp.timestamp,
-        icon: 'checkmark-circle',
-        color: '#3B82F6',
-      });
+    // Recent RSVPs with event names
+    rsvps.slice(0, 2).forEach(rsvp => {
+      const event = events.find(e => e.id === rsvp.eventId);
+      if (event) {
+        activities.push({
+          id: `rsvp-${rsvp.id}`,
+          type: 'rsvp',
+          title: `${rsvp.userName} registered for "${event.title}"`,
+          timestamp: rsvp.timestamp,
+          icon: 'checkmark-circle',
+          color: '#3B82F6',
+        });
+      }
+    });
+    
+    // Recent check-ins and check-outs (attendance)
+    // Create separate activities for check-ins and check-outs with member names
+    attendance.forEach(record => {
+      const event = events.find(e => e.id === record.eventId);
+      const rsvp = rsvps.find(r => r.eventId === record.eventId && r.userId === record.userId);
+      
+      if (event && rsvp) {
+        // Show check-out activity if available
+        if (record.checkOutAt) {
+          activities.push({
+            id: `checkout-${record.userId}-${record.eventId}-${record.checkOutAt}`,
+            type: 'checkout',
+            title: `${rsvp.userName || 'Member'} checked out from "${event.title}"`,
+            timestamp: record.checkOutAt,
+            icon: 'log-out',
+            color: '#3B82F6',
+          });
+        }
+        
+        // Show check-in activity if available
+        if (record.checkInAt) {
+          activities.push({
+            id: `checkin-${record.userId}-${record.eventId}-${record.checkInAt}`,
+            type: 'checkin',
+            title: `${rsvp.userName || 'Member'} checked in to "${event.title}"`,
+            timestamp: record.checkInAt,
+            icon: 'log-in',
+            color: '#10B981',
+          });
+        }
+      }
     });
     
     // Sort by timestamp
     return activities.sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     ).slice(0, 10);
-  }, [events, rsvps]);
+  }, [events, rsvps, attendance]);
 
   const chartConfig = useMemo(() => {
     if (!colors) {
@@ -269,11 +315,11 @@ export const AdminDashboardHomeScreen: React.FC = () => {
     .slice(0, 5);
 
   const quickActions = [
-    { icon: 'add-circle-outline', label: 'Create Event', screen: 'CreateEvent', color: '#10B981' },
-    { icon: 'people-outline', label: 'Create Club', screen: 'CreateClub', color: '#3B82F6' },
-    { icon: 'person-outline', label: 'Users', screen: 'UserManagement', color: '#8B5CF6' },
-    { icon: 'checkmark-circle-outline', label: 'RSVPs', screen: 'RSVPManagement', color: '#F59E0B' },
-    { icon: 'bar-chart-outline', label: 'Analytics', screen: 'Analytics', color: '#EF4444' },
+    { icon: 'add-circle-outline', label: 'Create Event', screen: 'CreateEvent' as keyof AdminStackParamList, color: '#10B981' },
+    { icon: 'people-outline', label: 'Create Club', screen: 'CreateClub' as keyof AdminStackParamList, color: '#3B82F6' },
+    { icon: 'person-outline', label: 'Users', screen: 'UserManagement' as keyof AdminStackParamList, color: '#8B5CF6' },
+    { icon: 'checkmark-circle-outline', label: 'RSVPs', screen: 'RSVPManagement' as keyof AdminStackParamList, color: '#F59E0B' },
+    { icon: 'bar-chart-outline', label: 'Analytics', screen: 'Analytics' as keyof AdminStackParamList, color: '#EF4444' },
   ];
 
   // Early return if colors is not available
@@ -373,10 +419,10 @@ export const AdminDashboardHomeScreen: React.FC = () => {
 
             <View style={[styles.statCard, { backgroundColor: colors.card }]}>
               <Ionicons name="checkmark-circle" size={24} color="#F59E0B" />
-              <Text style={[styles.statValue, { color: colors.text }]}>{confirmedRsvps}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedText }]}>Confirmed RSVPs</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{attendedMembers}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedText }]}>Attended Members</Text>
               <Text style={[styles.statSubtext, { color: colors.mutedText }]}>
-                {totalRsvps} total
+                {checkedInMembers} checked in
               </Text>
             </View>
           </View>
@@ -386,9 +432,9 @@ export const AdminDashboardHomeScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 8 }]}>Analytics Charts</Text>
           
-          {/* Line Chart: RSVPs per Event (Only events with registered RSVPs) */}
+          {/* Line Chart: RSVPs per Event */}
           <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>Event RSVPs Distribution (Active Events)</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>Number of RSVPs per Event</Text>
             {rsvpChartData.labels.length > 0 && rsvpChartData.datasets[0].data.length > 0 ? (
               <View style={styles.lineChartContainer}>
                 <ScrollView 
@@ -416,7 +462,7 @@ export const AdminDashboardHomeScreen: React.FC = () => {
             ) : (
               <View style={styles.chartPlaceholder}>
                 <Text style={[styles.chartPlaceholderText, { color: colors.mutedText }]}>
-                  No active events with RSVPs
+                  No events with RSVPs yet
                 </Text>
               </View>
             )}
@@ -426,26 +472,43 @@ export const AdminDashboardHomeScreen: React.FC = () => {
           <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.chartTitle, { color: colors.text }]}>Top 5 Clubs by Members</Text>
             {topClubsData.labels.length > 0 ? (
-              <View style={styles.barChartContainer}>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.barChartScrollContent}
+              <>
+                <View style={styles.barChartContainer}>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.barChartScrollContent}
+                  >
+                    <BarChart
+                      data={topClubsData}
+                      width={Math.max(screenWidth - 64, topClubsData.labels.length * 80)} // Responsive width based on number of bars
+                      height={240}
+                      chartConfig={chartConfig}
+                      style={styles.chart}
+                      yAxisLabel=""
+                      yAxisSuffix=""
+                      showValuesOnTopOfBars
+                      fromZero
+                      yAxisInterval={1}
+                      segments={5}
+                      withVerticalLabels={true}
+                      withHorizontalLabels={true}
+                    />
+                  </ScrollView>
+                </View>
+                {/* Other Clubs Button */}
+                <TouchableOpacity
+                  style={[styles.otherClubsButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
+                  onPress={() => {
+                    // Navigate to Clubs tab
+                    (navigation as any).navigate('Clubs');
+                  }}
                 >
-                  <BarChart
-                    data={topClubsData}
-                    width={Math.max(screenWidth - 64, topClubsData.labels.length * 80)} // Responsive width based on number of bars
-                    height={240}
-                    chartConfig={chartConfig}
-                    style={styles.chart}
-                    yAxisLabel=""
-                    yAxisSuffix=""
-                    showValuesOnTopOfBars
-                    fromZero
-                    yAxisInterval={1}
-                  />
-                </ScrollView>
-              </View>
+                  <Ionicons name="people-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.otherClubsButtonText, { color: colors.primary }]}>View All Clubs</Text>
+                  <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              </>
             ) : (
               <View style={styles.chartPlaceholder}>
                 <Text style={[styles.chartPlaceholderText, { color: colors.mutedText }]}>
@@ -465,7 +528,10 @@ export const AdminDashboardHomeScreen: React.FC = () => {
               <TouchableOpacity
                 key={action.screen}
                 style={[styles.quickActionCard, { backgroundColor: colors.card }]}
-                onPress={() => navigation.navigate(action.screen)}
+                onPress={() => {
+                  // Navigate to stack screens - type-safe navigation
+                  (navigation as any).navigate(action.screen);
+                }}
               >
                 <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
                   <Ionicons name={action.icon as any} size={28} color={action.color} />
@@ -480,7 +546,7 @@ export const AdminDashboardHomeScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 8 }]}>Recent Activity</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
+            <TouchableOpacity onPress={() => (navigation as any).navigate('RecentActivity')}>
               <Text style={[styles.seeAll, { color: colors.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -840,6 +906,21 @@ const styles = StyleSheet.create({
   },
   activityTime: {
     fontSize: 12,
+  },
+  otherClubsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  otherClubsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

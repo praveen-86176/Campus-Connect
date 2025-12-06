@@ -30,21 +30,57 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files - ALL environment variable files
 .env
+.env*
+!.env.example
 .env.local
 .env.production
 .env.development
+.env.test
 
 # Credentials and secrets
 src/constants/creds.tsx
 **/creds.tsx
 **/*credentials*
 **/*secrets*
+**/*api-keys*
+**/*apikeys*
+**/*.key
+**/*.pem
+
+# Firebase config files (may contain project IDs)
+.firebaserc
+firebase.json
+firestore.indexes.json
+firestore.rules
+
+# Cloudinary config (may contain keys)
+**/cloudinary*.json
+
+# API keys and tokens
+**/api-keys.*
+**/tokens.*
+**/config/keys.*
+
+# Build and deployment secrets
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.certSigningRequest
+*.cer
 
 # typescript
 *.tsbuildinfo
+
+# Eclipse IDE files
+.project
+.classpath
+.settings/
+.buildpath
 
 # generated native folders
 /ios

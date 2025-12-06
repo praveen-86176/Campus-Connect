@@ -1,36 +1,58 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Alert, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useCampusData } from '../context/CampusDataContext';
+import { RootStackParamList, AdminStackParamList } from '../navigation/types';
+import { canMarkAttendance } from '../utils/roleUtils';
 
 type QRCodeData = {
+  rsvpId?: string; // Optional for backward compatibility
   eventId: string;
   userId: string;
   timestamp?: string;
 };
 
+type RouteProps = RouteProp<RootStackParamList, 'QRScanner'>;
+type NavProps = NativeStackNavigationProp<RootStackParamList>;
+
 export const QRScannerScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavProps>();
+  const route = useRoute<RouteProps>();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   const { user } = useAuth();
-  const { markCheckIn, getEventById } = useCampusData();
+  const { markCheckIn, markCheckOut, getEventById, getUserAttendanceStatus, rsvps } = useCampusData();
+  
+  const eventId = route.params?.eventId;
+  const targetEvent = eventId ? getEventById(eventId) : null;
+  const isAdminOrOrganizer = canMarkAttendance(user);
   
   const [permission, requestPermission] = useCameraPermissions();
   const [hasScanned, setHasScanned] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const [lastScannedUser, setLastScannedUser] = useState<string | null>(null);
 
   useEffect(() => {
     if (!permission) {
       requestPermission();
     }
-  }, [permission, requestPermission]);
+    
+    // Check permissions for admin/organizer - only admins/organizers can scan QR codes
+    if (!isAdminOrOrganizer) {
+      Alert.alert(
+        'Access Denied',
+        'You do not have permission to scan QR codes for attendance. Only administrators and event organizers can scan QR codes.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    }
+  }, [permission, requestPermission, isAdminOrOrganizer, navigation]);
 
   const validateQRCode = (data: string): QRCodeData | null => {
     try {
@@ -75,8 +97,25 @@ export const QRScannerScreen: React.FC = () => {
         return;
       }
 
-      // Check if the QR code is for the current user (if scanning own QR)
-      // Or if admin/organizer is scanning someone else's QR
+      // STRICT EVENT MATCHING: If scanning for a specific event, QR code MUST match that event
+      if (eventId && qrData.eventId !== eventId) {
+        Alert.alert(
+          'Wrong Event QR Code',
+          `This QR code is for a different event. You are scanning for "${targetEvent?.title || 'this event'}". Please scan the correct QR code that matches this event.`,
+          [
+            { 
+              text: 'Try Again', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       const event = getEventById(qrData.eventId);
       
       if (!event) {
@@ -97,32 +136,127 @@ export const QRScannerScreen: React.FC = () => {
         return;
       }
 
-      // Mark check-in
-      await markCheckIn(qrData.eventId, qrData.userId);
+      // Check if user has RSVP'd - use RSVP ID if available, otherwise find by eventId and userId
+      let userRsvp = qrData.rsvpId 
+        ? rsvps.find(r => r.id === qrData.rsvpId)
+        : rsvps.find(r => r.eventId === qrData.eventId && r.userId === qrData.userId);
       
-      // Get user info for display
-      const scannedUserName = qrData.userId === user?.uid ? 'You' : 'The user';
-      const verb = qrData.userId === user?.uid ? 'have' : 'has';
-      
-      Alert.alert(
-        'Check-in Successful! ✅',
-        `${scannedUserName} ${verb} been checked in to "${event.title}".`,
-        [
-          { 
-            text: 'Scan Another', 
-            onPress: () => {
-              setHasScanned(false);
-              setIsProcessing(false);
-              setScannedData(null);
+      if (!userRsvp) {
+        Alert.alert(
+          'No RSVP Found',
+          'This user has not RSVP\'d to this event. Please RSVP first.',
+          [
+            { 
+              text: 'Try Again', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+              }
             }
-          },
-          { 
-            text: 'Done', 
-            style: 'default',
-            onPress: () => navigation.goBack()
-          }
-        ]
-      );
+          ]
+        );
+        return;
+      }
+
+      // Check current attendance status
+      const currentStatus = getUserAttendanceStatus(qrData.eventId, qrData.userId);
+      setLastScannedUser(qrData.userId);
+
+      // Determine action based on current status - automatic check-in/check-out
+      if (currentStatus === 'absent') {
+        // First scan - automatically mark check-in
+        await markCheckIn(qrData.eventId, qrData.userId);
+        
+        Alert.alert(
+          'Check-in Successful! ✅',
+          `You are checked in for "${event.title}".\n\n${userRsvp.userName} has been successfully checked in.`,
+          [
+            { 
+              text: 'Scan Another', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+                setLastScannedUser(null);
+              }
+            },
+            { 
+              text: 'Done', 
+              style: 'default',
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
+      } else if (currentStatus === 'checked_in') {
+        // Already checked in - automatically check out on second scan
+        try {
+          await markCheckOut(qrData.eventId, qrData.userId);
+          
+          Alert.alert(
+            'Check-out Successful! ✅',
+            `You are checked out from "${event.title}".\n\n${userRsvp.userName} has been successfully checked out.`,
+            [
+              { 
+                text: 'Scan Another', 
+                onPress: () => {
+                  setHasScanned(false);
+                  setIsProcessing(false);
+                  setScannedData(null);
+                  setLastScannedUser(null);
+                }
+              },
+              { 
+                text: 'Done', 
+                style: 'default',
+                onPress: () => navigation.goBack()
+              }
+            ]
+          );
+        } catch (error: any) {
+          Alert.alert(
+            'Check-out Failed',
+            error.message || 'Cannot check out without checking in first. Please check in before checking out.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => {
+                  setHasScanned(false);
+                  setIsProcessing(false);
+                  setScannedData(null);
+                }
+              }
+            ]
+          );
+        }
+      } else if (currentStatus === 'checked_out') {
+        // Already checked out - inform admin
+        Alert.alert(
+          'Already Checked Out',
+          `${userRsvp.userName} has already been checked out from "${event.title}".`,
+          [
+            { 
+              text: 'Scan Another', 
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+                setLastScannedUser(null);
+              }
+            },
+            { 
+              text: 'OK',
+              style: 'cancel',
+              onPress: () => {
+                setHasScanned(false);
+                setIsProcessing(false);
+                setScannedData(null);
+                setLastScannedUser(null);
+              }
+            }
+          ]
+        );
+      }
     } catch (error: any) {
       console.error('Error processing QR code:', error);
       Alert.alert(
@@ -193,6 +327,12 @@ export const QRScannerScreen: React.FC = () => {
           >
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
+          {targetEvent && (
+            <View style={styles.eventInfo}>
+              <Text style={styles.eventTitle} numberOfLines={1}>{targetEvent.title}</Text>
+              <Text style={styles.eventSubtitle}>Scan QR codes for this event</Text>
+            </View>
+          )}
         </View>
 
         {/* Scanning frame */}
@@ -357,5 +497,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  eventInfo: {
+    flex: 1,
+    marginLeft: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  eventTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  eventSubtitle: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 2,
   },
 });

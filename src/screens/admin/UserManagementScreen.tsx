@@ -19,8 +19,9 @@ import { getColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 import { User, UserRole } from '../../types';
 import { adminService } from '../../services/adminService';
+import { AdminStackParamList } from '../../navigation/types';
 
-type UserManagementNavProp = NativeStackNavigationProp<any>;
+type UserManagementNavProp = NativeStackNavigationProp<AdminStackParamList, 'UserManagement'>;
 
 export const UserManagementScreen: React.FC = () => {
   const navigation = useNavigation<UserManagementNavProp>();
@@ -58,9 +59,11 @@ export const UserManagementScreen: React.FC = () => {
         user.phone?.toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      // Note: 'inactive' is not a valid UserRole, so we treat all users with a role as 'active'
+      // Users without a role are considered 'inactive'
       const matchesStatus = statusFilter === 'all' || 
-        (statusFilter === 'active' && user.role !== 'inactive') ||
-        (statusFilter === 'inactive' && user.role === 'inactive');
+        (statusFilter === 'active' && user.role !== undefined) ||
+        (statusFilter === 'inactive' && user.role === undefined);
       
       return matchesSearch && matchesRole && matchesStatus;
     });
@@ -272,7 +275,7 @@ export const UserManagementScreen: React.FC = () => {
             <TouchableOpacity
               key={user.uid}
               style={[styles.userCard, { backgroundColor: colors.card }]}
-              onPress={() => navigation.navigate('UserDetails', { userId: user.uid })}
+              onPress={() => toggleUserSelection(user.uid)}
             >
               <TouchableOpacity
                 style={styles.checkbox}
@@ -325,7 +328,7 @@ export const UserManagementScreen: React.FC = () => {
                   <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
                 </TouchableOpacity>
                 <Switch
-                  value={user.role !== 'inactive'}
+                  value={user.role !== undefined}
                   onValueChange={(value) => handleToggleUserStatus(user.uid, value)}
                   trackColor={{ false: colors.border, true: colors.primary }}
                 />

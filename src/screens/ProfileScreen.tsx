@@ -11,6 +11,8 @@ import { useCampusData } from '../context/CampusDataContext';
 import { useAuth } from '../context/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { pickAndUploadImage, takePhotoAndUpload } from '../services/cloudinaryService';
+import { getNotificationPreferences, updateNotificationPreferences } from '../services/notifications/notificationPreferencesService';
+import { NotificationPreferences, DEFAULT_NOTIFICATION_PREFERENCES } from '../types/NotificationPreferences.types';
 
 type ProfileNavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,6 +23,8 @@ export const ProfileScreen: React.FC = () => {
     const { rsvps, attendance, events, memberships } = useCampusData();
     const colors = getColors(isDark);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [loadingPreferences, setLoadingPreferences] = useState(true);
+    const [savingPreferences, setSavingPreferences] = useState(false);
 
     // Calculate stats (only for students, not admin)
     const isAdmin = user?.role === 'admin' || user?.role === 'developer';
@@ -38,11 +42,66 @@ export const ProfileScreen: React.FC = () => {
         return new Date(event.date) > new Date();
     }).length;
 
-    // Mock notification preferences
-    const [eventReminders, setEventReminders] = useState(true);
-    const [newEvents, setNewEvents] = useState(true);
-    const [eventUpdates, setEventUpdates] = useState(true);
-    const [weeklyDigest, setWeeklyDigest] = useState(false);
+    // Notification preferences - loaded from Firestore
+    const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() => {
+        // Initialize from user data if available, otherwise use defaults
+        if (user?.notificationPreferences) {
+            return {
+                eventReminders: user.notificationPreferences.eventReminders ?? DEFAULT_NOTIFICATION_PREFERENCES.eventReminders,
+                newEvents: user.notificationPreferences.newEvents ?? DEFAULT_NOTIFICATION_PREFERENCES.newEvents,
+                newClubs: user.notificationPreferences.newClubs ?? DEFAULT_NOTIFICATION_PREFERENCES.newClubs,
+                eventUpdates: user.notificationPreferences.eventUpdates ?? DEFAULT_NOTIFICATION_PREFERENCES.eventUpdates,
+                weeklyDigest: user.notificationPreferences.weeklyDigest ?? DEFAULT_NOTIFICATION_PREFERENCES.weeklyDigest,
+            };
+        }
+        return DEFAULT_NOTIFICATION_PREFERENCES;
+    });
+
+    // Load notification preferences on mount
+    useEffect(() => {
+        if (user?.uid) {
+            loadNotificationPreferences();
+        }
+    }, [user?.uid]);
+
+    const loadNotificationPreferences = async () => {
+        if (!user?.uid) return;
+        
+        try {
+            setLoadingPreferences(true);
+            const prefs = await getNotificationPreferences(user.uid);
+            setNotificationPrefs(prefs);
+        } catch (error) {
+            console.error('Error loading notification preferences:', error);
+            // Use defaults on error
+            setNotificationPrefs(DEFAULT_NOTIFICATION_PREFERENCES);
+        } finally {
+            setLoadingPreferences(false);
+        }
+    };
+
+    const handlePreferenceChange = async (
+        key: keyof NotificationPreferences,
+        value: boolean
+    ) => {
+        if (!user?.uid || savingPreferences) return;
+
+        // Optimistically update UI
+        const updatedPrefs = { ...notificationPrefs, [key]: value };
+        setNotificationPrefs(updatedPrefs);
+
+        try {
+            setSavingPreferences(true);
+            await updateNotificationPreferences(user.uid, { [key]: value });
+        } catch (error: any) {
+            // Revert on error
+            setNotificationPrefs(notificationPrefs);
+            Alert.alert('Error', 'Failed to update notification preference. Please try again.');
+            console.error('Error updating preference:', error);
+        } finally {
+            setSavingPreferences(false);
+        }
+    };
 
     const handleChangePhoto = () => {
         Alert.alert(
@@ -263,7 +322,12 @@ export const ProfileScreen: React.FC = () => {
 
                 {/* Notification Preferences */}
                 <View style={[styles.section, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Notification Preferences</Text>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Notification Preferences</Text>
+                        {loadingPreferences && (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                        )}
+                    </View>
 
                     <View style={styles.preferenceRow}>
                         <View style={styles.preferenceInfo}>
@@ -273,10 +337,11 @@ export const ProfileScreen: React.FC = () => {
                             </Text>
                         </View>
                         <Switch
-                            value={eventReminders}
-                            onValueChange={setEventReminders}
+                            value={notificationPrefs.eventReminders}
+                            onValueChange={(value) => handlePreferenceChange('eventReminders', value)}
                             trackColor={{ false: colors.border, true: colors.primary }}
                             thumbColor={colors.textLight}
+                            disabled={loadingPreferences || savingPreferences}
                         />
                     </View>
 
@@ -284,14 +349,31 @@ export const ProfileScreen: React.FC = () => {
                         <View style={styles.preferenceInfo}>
                             <Text style={[styles.preferenceTitle, { color: colors.text }]}>New Events</Text>
                             <Text style={[styles.preferenceSubtitle, { color: colors.mutedText }]}>
-                                From clubs you follow
+                                Get notified when new events are created
                             </Text>
                         </View>
                         <Switch
-                            value={newEvents}
-                            onValueChange={setNewEvents}
+                            value={notificationPrefs.newEvents}
+                            onValueChange={(value) => handlePreferenceChange('newEvents', value)}
                             trackColor={{ false: colors.border, true: colors.primary }}
                             thumbColor={colors.textLight}
+                            disabled={loadingPreferences || savingPreferences}
+                        />
+                    </View>
+
+                    <View style={styles.preferenceRow}>
+                        <View style={styles.preferenceInfo}>
+                            <Text style={[styles.preferenceTitle, { color: colors.text }]}>New Clubs</Text>
+                            <Text style={[styles.preferenceSubtitle, { color: colors.mutedText }]}>
+                                Get notified when new clubs are created
+                            </Text>
+                        </View>
+                        <Switch
+                            value={notificationPrefs.newClubs}
+                            onValueChange={(value) => handlePreferenceChange('newClubs', value)}
+                            trackColor={{ false: colors.border, true: colors.primary }}
+                            thumbColor={colors.textLight}
+                            disabled={loadingPreferences || savingPreferences}
                         />
                     </View>
 
@@ -299,14 +381,15 @@ export const ProfileScreen: React.FC = () => {
                         <View style={styles.preferenceInfo}>
                             <Text style={[styles.preferenceTitle, { color: colors.text }]}>Event Updates</Text>
                             <Text style={[styles.preferenceSubtitle, { color: colors.mutedText }]}>
-                                Changes to your RSVPs
+                                Changes to events you've RSVP'd for
                             </Text>
                         </View>
                         <Switch
-                            value={eventUpdates}
-                            onValueChange={setEventUpdates}
+                            value={notificationPrefs.eventUpdates}
+                            onValueChange={(value) => handlePreferenceChange('eventUpdates', value)}
                             trackColor={{ false: colors.border, true: colors.primary }}
                             thumbColor={colors.textLight}
+                            disabled={loadingPreferences || savingPreferences}
                         />
                     </View>
 
@@ -318,10 +401,11 @@ export const ProfileScreen: React.FC = () => {
                             </Text>
                         </View>
                         <Switch
-                            value={weeklyDigest}
-                            onValueChange={setWeeklyDigest}
+                            value={notificationPrefs.weeklyDigest}
+                            onValueChange={(value) => handlePreferenceChange('weeklyDigest', value)}
                             trackColor={{ false: colors.border, true: colors.primary }}
                             thumbColor={colors.textLight}
+                            disabled={loadingPreferences || savingPreferences}
                         />
                     </View>
                 </View>
@@ -512,10 +596,15 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 20,
     },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        marginBottom: 16,
     },
     infoRow: {
         flexDirection: 'row',

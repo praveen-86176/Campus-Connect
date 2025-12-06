@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,8 @@ import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { validateName, validateEmail } from '../utils/validation';
 import { RootStackParamList } from '../navigation/types';
-import { pickAndUploadImage, takePhotoAndUpload } from '../services/cloudinaryService';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImageToCloudinary } from '../services/cloudinaryService';
 
 type EditProfileNavProp = NativeStackNavigationProp<RootStackParamList, 'EditProfile'>;
 
@@ -27,6 +28,60 @@ export const EditProfileScreen: React.FC = () => {
     const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
     const [loading, setLoading] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+    // Request media library permissions on mount
+    useEffect(() => {
+        (async () => {
+            if (Platform.OS !== 'web') {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                    // Permission will be requested when user tries to pick image
+                }
+            }
+        })();
+    }, []);
+
+    const pickImage = async () => {
+        try {
+            setUploadingPhoto(true);
+            
+            // Request permission if not granted
+            if (Platform.OS !== 'web') {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to make this work!');
+                    setUploadingPhoto(false);
+                    return;
+                }
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1], // Square for profile pictures
+                quality: 1,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                // Upload to Cloudinary
+                const uploadResult = await uploadImageToCloudinary(
+                    result.assets[0].uri,
+                    undefined,
+                    'profile-pictures'
+                );
+                
+                if (uploadResult) {
+                    setPhotoURL(uploadResult.secureUrl);
+                    Alert.alert('Success', 'Profile photo uploaded successfully!');
+                }
+            }
+        } catch (error: any) {
+            console.error('Error uploading image to Cloudinary:', error);
+            Alert.alert('Error', error.message || 'Failed to upload photo');
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
 
     const handleSave = async () => {
         // Validation
@@ -71,35 +126,14 @@ export const EditProfileScreen: React.FC = () => {
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Take Photo',
-                    onPress: async () => {
-                        try {
-                            setUploadingPhoto(true);
-                            const result = await takePhotoAndUpload('profile-pictures', true);
-                            if (result) {
-                                setPhotoURL(result.secureUrl);
-                            }
-                        } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to upload photo');
-                        } finally {
-                            setUploadingPhoto(false);
-                        }
-                    },
+                    text: 'Choose from Library',
+                    onPress: pickImage,
                 },
                 {
-                    text: 'Choose from Library',
-                    onPress: async () => {
-                        try {
-                            setUploadingPhoto(true);
-                            const result = await pickAndUploadImage('profile-pictures', true);
-                            if (result) {
-                                setPhotoURL(result.secureUrl);
-                            }
-                        } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to upload photo');
-                        } finally {
-                            setUploadingPhoto(false);
-                        }
+                    text: 'Remove Photo',
+                    style: 'destructive',
+                    onPress: () => {
+                        setPhotoURL('');
                     },
                 },
             ]

@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase.config';
 import { User } from '../types';
+import { normalizeEmail, getFirebaseAuthErrorMessage } from '../utils/validation';
 
 type AuthContextType = {
     user: User | null;
@@ -57,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                         yearOfStudy: userData?.yearOfStudy,
                         interests: userData?.interests || [],
                         createdAt: userData?.createdAt?.toDate() || new Date(),
+                        notificationPreferences: userData?.notificationPreferences,
                     });
                 } else {
                     // Fallback if Firestore document doesn't exist
@@ -79,15 +81,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signIn = async (email: string, password: string) => {
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            // Normalize email before authentication
+            const normalizedEmail = normalizeEmail(email);
+            await signInWithEmailAndPassword(auth, normalizedEmail, password);
         } catch (error: any) {
-            throw new Error(error.message || 'Failed to sign in');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            throw new Error(friendlyMessage);
         }
     };
 
     const signUp = async (email: string, password: string, userData: Partial<User>) => {
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            // Normalize email before authentication
+            const normalizedEmail = normalizeEmail(email);
+            const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
             const { uid } = userCredential.user;
 
             // Update Firebase Auth profile
@@ -98,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Store additional user data in Firestore
             const userDocData: any = {
                 name: userData.name,
-                email: email,
+                email: normalizedEmail, // Store normalized email
                 role: userData.role || 'student',
                 createdAt: serverTimestamp(),
             };
@@ -126,7 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             await setDoc(doc(db, 'users', uid), userDocData);
         } catch (error: any) {
-            throw new Error(error.message || 'Failed to create account');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            throw new Error(friendlyMessage);
         }
     };
 
@@ -166,9 +174,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const resetPassword = async (email: string) => {
         try {
-            await sendPasswordResetEmail(auth, email);
+            // Normalize email before sending reset email
+            const normalizedEmail = normalizeEmail(email);
+            await sendPasswordResetEmail(auth, normalizedEmail);
         } catch (error: any) {
-            throw new Error(error.message || 'Failed to send reset email');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            throw new Error(friendlyMessage);
         }
     };
 

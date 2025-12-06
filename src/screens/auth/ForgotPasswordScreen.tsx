@@ -7,8 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { validateEmail } from '../../utils/validation';
+import { validateEmail, normalizeEmail, getFirebaseAuthErrorMessage } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type ForgotPasswordNavProp = NativeStackNavigationProp<AuthStackParamList, 'ForgotPassword'>;
@@ -16,8 +15,8 @@ type ForgotPasswordNavProp = NativeStackNavigationProp<AuthStackParamList, 'Forg
 export const ForgotPasswordScreen: React.FC = () => {
     const navigation = useNavigation<ForgotPasswordNavProp>();
     const { resetPassword } = useAuth();
-    const { isDark } = useTheme();
-    const colors = getColors(isDark);
+    // Always use light mode for forgot password page
+    const colors = getColors(false);
 
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
@@ -29,22 +28,27 @@ export const ForgotPasswordScreen: React.FC = () => {
             return;
         }
 
-        if (!validateEmail(email)) {
+        // Normalize email (trim and lowercase)
+        const normalizedEmail = normalizeEmail(email);
+
+        if (!normalizedEmail || !validateEmail(normalizedEmail)) {
             Alert.alert('Error', 'Please enter a valid email address');
             return;
         }
 
         setLoading(true);
         try {
-            await resetPassword(email);
+            // Use normalized email for password reset
+            await resetPassword(normalizedEmail);
             setEmailSent(true);
             Alert.alert(
                 'Email Sent',
-                'Password reset instructions have been sent to your email.',
+                'Password reset instructions have been sent to your email address. Please check your inbox and spam folder.',
                 [{ text: 'OK', onPress: () => navigation.navigate({ name: 'SignIn', params: {} }) }]
             );
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to send reset email');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            Alert.alert('Error', friendlyMessage);
         } finally {
             setLoading(false);
         }

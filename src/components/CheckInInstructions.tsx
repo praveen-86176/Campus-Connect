@@ -21,14 +21,21 @@ export const CheckInInstructions: React.FC = () => {
                 <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>2</Text>
                 </View>
-                <Text style={styles.stepText}>Show this QR code to the event organizer</Text>
+                <Text style={styles.stepText}>Show this QR code to the event organizer/admin</Text>
             </View>
 
             <View style={styles.step}>
                 <View style={styles.stepNumber}>
                     <Text style={styles.stepNumberText}>3</Text>
                 </View>
-                <Text style={styles.stepText}>Wait for the green confirmation on their device</Text>
+                <Text style={styles.stepText}>They will scan your QR code to mark your attendance</Text>
+            </View>
+            
+            <View style={styles.step}>
+                <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>4</Text>
+                </View>
+                <Text style={styles.stepText}>You'll see your status update automatically once scanned</Text>
             </View>
         </View>
     );

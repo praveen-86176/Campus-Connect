@@ -33,6 +33,7 @@ export type Event = {
   registrationRequired: boolean;
   tags?: string[];
   eventLink?: string;
+  meetingPlatform?: 'Zoom' | 'Google Meet' | 'YouTube' | 'Other';
   createdAt: Date;
   updatedAt: Date;
 };
@@ -90,6 +91,14 @@ export type User = {
   // Club Leader fields
   clubLeaderRole?: ClubLeaderRole;
   managedClubIds?: string[]; // Clubs this user manages
+  // Notification preferences
+  notificationPreferences?: {
+    eventReminders?: boolean;
+    newEvents?: boolean;
+    newClubs?: boolean;
+    eventUpdates?: boolean;
+    weeklyDigest?: boolean;
+  };
 };
 
 // Membership type

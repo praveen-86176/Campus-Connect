@@ -5,7 +5,6 @@ import { useTheme } from '../context/ThemeContext';
 import { ClubsListScreen } from '../screens/ClubsListScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { MyRsvpsScreen } from '../screens/MyRsvpsScreen';
-import { QRScannerScreen } from '../screens/QRScannerScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { MainTabsParamList } from './types';
 
@@ -17,6 +16,7 @@ export const MainTabs = () => {
 
   return (
     <Tab.Navigator
+      id="MainTabs"
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
@@ -42,8 +42,6 @@ export const MainTabs = () => {
             iconName = 'people';
           } else if (route.name === 'MyRsvps') {
             iconName = 'calendar';
-          } else if (route.name === 'CheckIn') {
-            iconName = 'qr-code';
           } else if (route.name === 'Profile') {
             iconName = 'person';
           }
@@ -58,11 +56,6 @@ export const MainTabs = () => {
         name="MyRsvps"
         component={MyRsvpsScreen}
         options={{ title: 'My Events' }}
-      />
-      <Tab.Screen
-        name="CheckIn"
-        component={QRScannerScreen}
-        options={{ title: 'Check-in' }}
       />
       <Tab.Screen
         name="Profile"

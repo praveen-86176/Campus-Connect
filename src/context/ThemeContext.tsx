@@ -12,6 +12,7 @@ type ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    // Default to light mode for new users
     const [theme, setTheme] = useState<Theme>('light');
 
     useEffect(() => {
@@ -21,11 +22,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const loadTheme = async () => {
         try {
             const savedTheme = await AsyncStorage.getItem('theme');
+            // Only load saved theme if it exists, otherwise stay with light mode (default)
             if (savedTheme === 'dark' || savedTheme === 'light') {
                 setTheme(savedTheme);
             }
+            // If no saved theme exists, theme remains 'light' (the default)
         } catch (error) {
             console.error('Failed to load theme:', error);
+            // On error, theme remains 'light' (the default)
         }
     };
 

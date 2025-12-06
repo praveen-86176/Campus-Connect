@@ -19,37 +19,62 @@ export interface UploadResult {
 
 /**
  * Upload image to Cloudinary from local URI
+ * Uses the provided pattern with FormData and upload preset
  */
 export const uploadImageToCloudinary = async (
   imageUri: string,
-  folder: string = 'campus-connect',
-  resourceType: 'image' | 'auto' = 'image'
+  uploadPreset?: string,
+  folder: string = 'campus-connect'
 ): Promise<UploadResult> => {
   try {
-    // Convert local URI to base64 or use direct upload
-    // For React Native, we'll use the upload API with the URI
-    const formData = new FormData();
+    // Determine upload preset based on folder if not provided
+    const preset = uploadPreset || getUploadPreset(folder) || CLOUDINARY_EVENT_PRESET;
     
-    // Extract filename from URI
-    const filename = imageUri.split('/').pop() || 'image.jpg';
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    const data = new FormData();
+    
+    // Extract filename from URI - accept all image types
+    const filename = imageUri.split('/').pop() || 'upload.jpg';
+    // Try to detect image type from extension, but default to generic image type
+    // This allows all image formats (JPEG, PNG, WebP, HEIC, GIF, etc.)
+    const match = /\.(\w+)$/i.exec(filename);
+    let imageType = 'image/jpeg'; // Default fallback
+    if (match) {
+      const ext = match[1].toLowerCase();
+      // Map common extensions to MIME types, but accept any image type
+      const typeMap: { [key: string]: string } = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'heic': 'image/heic',
+        'heif': 'image/heif',
+        'bmp': 'image/bmp',
+        'tiff': 'image/tiff',
+        'tif': 'image/tiff',
+      };
+      imageType = typeMap[ext] || `image/${ext}`; // Use extension as fallback for unknown types
+    }
 
-    // @ts-ignore - FormData typing issue
-    formData.append('file', {
+    // @ts-ignore - FormData typing issue for React Native
+    data.append('file', {
       uri: imageUri,
-      type,
+      type: imageType,
       name: filename,
     });
-    formData.append('upload_preset', 'ml_default'); // You may need to create this in Cloudinary
-    formData.append('folder', folder);
-    formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+    data.append('upload_preset', preset);
+    data.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+    
+    // Add folder if provided
+    if (folder) {
+      data.append('folder', folder);
+    }
 
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
       {
         method: 'POST',
-        body: formData,
+        body: data,
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -61,15 +86,16 @@ export const uploadImageToCloudinary = async (
       throw new Error(errorData.error?.message || 'Failed to upload image');
     }
 
-    const data = await response.json();
+    const result = await response.json();
+    console.log('Cloudinary upload result:', result);
     
     return {
-      url: data.url,
-      publicId: data.public_id,
-      secureUrl: data.secure_url,
+      url: result.url,
+      publicId: result.public_id,
+      secureUrl: result.secure_url,
     };
   } catch (error: any) {
-    console.error('Cloudinary upload error:', error);
+    console.error('Error uploading image to Cloudinary:', error);
     throw new Error(error.message || 'Failed to upload image to Cloudinary');
   }
 };
@@ -103,8 +129,26 @@ export const uploadImageUnsigned = async (
   }
   try {
     const filename = imageUri.split('/').pop() || 'image.jpg';
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    // Accept all image types - detect from extension or use generic type
+    const match = /\.(\w+)$/i.exec(filename);
+    let type = 'image/jpeg'; // Default fallback
+    if (match) {
+      const ext = match[1].toLowerCase();
+      // Map common extensions, but accept any image type
+      const typeMap: { [key: string]: string } = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'heic': 'image/heic',
+        'heif': 'image/heif',
+        'bmp': 'image/bmp',
+        'tiff': 'image/tiff',
+        'tif': 'image/tiff',
+      };
+      type = typeMap[ext] || `image/${ext}`; // Use extension as fallback for unknown types
+    }
 
     // Generate timestamp for signature
     const timestamp = Math.floor(Date.now() / 1000);
@@ -118,7 +162,7 @@ export const uploadImageUnsigned = async (
     // @ts-ignore - FormData typing issue in React Native
     formData.append('file', {
       uri: imageUri,
-      type,
+      type: type,
       name: filename,
     } as any);
     
@@ -182,21 +226,18 @@ export const uploadImageUnsigned = async (
  */
 const requestMediaLibraryPermissions = async (): Promise<boolean> => {
   try {
-    // Check current permission status
     const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
     
     if (existingStatus === 'granted') {
       return true;
     }
 
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (status === 'granted') {
       return true;
     }
 
-    // Permission denied - show alert
     Alert.alert(
       'Permission Required',
       'This app needs access to your photo library to select photos. Please enable it in your device settings.',
@@ -224,24 +265,28 @@ const requestMediaLibraryPermissions = async (): Promise<boolean> => {
 
 /**
  * Pick image from device and upload to Cloudinary
+ * Uses the provided pattern with launchImageLibraryAsync
  */
 export const pickAndUploadImage = async (
   folder: string = 'campus-connect',
   allowsEditing: boolean = true
 ): Promise<UploadResult | null> => {
   try {
-    // Request permissions with user-friendly handling
-    const hasPermission = await requestMediaLibraryPermissions();
-    if (!hasPermission) {
-      throw new Error('Permission to access media library was denied. Please enable it in settings.');
+    // Request permissions first
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to make this work!');
+        return null;
+      }
     }
 
-    // Pick image
+    // Pick image from library
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: MediaTypeOptions.Images,
       allowsEditing,
-      aspect: [1, 1],
-      quality: 0.8,
+      aspect: folder.includes('profile') ? [1, 1] : [4, 3],
+      quality: 1,
     });
 
     if (result.canceled || !result.assets[0]) {
@@ -250,11 +295,18 @@ export const pickAndUploadImage = async (
 
     const imageUri = result.assets[0].uri;
     
-    // Upload to Cloudinary - automatically uses correct preset based on folder
-    const uploadResult = await uploadImageUnsigned(imageUri, null, folder);
+    // Validate image size (max 10MB)
+    if (result.assets[0].fileSize && result.assets[0].fileSize > 10 * 1024 * 1024) {
+      Alert.alert('Image Too Large', 'Please select an image smaller than 10MB.');
+      return null;
+    }
+    
+    // Upload to Cloudinary using the provided pattern
+    const uploadResult = await uploadImageToCloudinary(imageUri, undefined, folder);
     return uploadResult;
   } catch (error: any) {
     console.error('Pick and upload error:', error);
+    Alert.alert('Error', error.message || 'Failed to pick and upload image. Please try again.');
     throw error;
   }
 };
@@ -312,17 +364,17 @@ export const takePhotoAndUpload = async (
   allowsEditing: boolean = true
 ): Promise<UploadResult | null> => {
   try {
-    // Request permissions with user-friendly handling
     const hasPermission = await requestCameraPermissions();
     if (!hasPermission) {
       throw new Error('Permission to access camera was denied. Please enable it in settings.');
     }
 
-    // Take photo (will handle simulator errors gracefully)
     const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: MediaTypeOptions.Images,
       allowsEditing,
-      aspect: [1, 1],
+      aspect: [4, 3],
       quality: 0.8,
+      exif: false,
     });
 
     if (result.canceled || !result.assets[0]) {
@@ -331,35 +383,48 @@ export const takePhotoAndUpload = async (
 
     const imageUri = result.assets[0].uri;
     
-    // Upload to Cloudinary - automatically uses correct preset based on folder
+    // Validate image size (max 10MB)
+    if (result.assets[0].fileSize && result.assets[0].fileSize > 10 * 1024 * 1024) {
+      Alert.alert('Image Too Large', 'Please select an image smaller than 10MB.');
+      return null;
+    }
+    
     const uploadResult = await uploadImageUnsigned(imageUri, null, folder);
     return uploadResult;
   } catch (error: any) {
     console.error('Take photo and upload error:', error);
-    // Handle simulator-specific errors gracefully
     const errorMessage = error.message || error.toString() || '';
+    
     if (errorMessage.includes('simulator') || errorMessage.includes('not available') || errorMessage.includes('Camera')) {
-      Alert.alert(
-        'Camera Not Available',
-        'Camera is not available on simulators. Please use "Choose from Library" instead, or test on a physical device.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Use Library',
-            onPress: async () => {
-              try {
-                // Automatically fall back to library picker
-                const result = await pickAndUploadImage(folder, allowsEditing);
-                return result;
-              } catch (libError) {
-                console.error('Library picker error:', libError);
-              }
+      return new Promise((resolve) => {
+        Alert.alert(
+          'Camera Not Available',
+          'Camera is not available. Would you like to choose a photo from your library instead?',
+          [
+            { 
+              text: 'Cancel', 
+              style: 'cancel',
+              onPress: () => resolve(null)
             },
-          },
-        ]
-      );
-      return null; // Return null instead of throwing to allow graceful fallback
+            {
+              text: 'Use Library',
+              onPress: async () => {
+                try {
+                  const result = await pickAndUploadImage(folder, allowsEditing);
+                  resolve(result);
+                } catch (libError: any) {
+                  console.error('Library picker error:', libError);
+                  Alert.alert('Error', libError.message || 'Failed to pick image from library');
+                  resolve(null);
+                }
+              },
+            },
+          ]
+        );
+      });
     }
+    
+    Alert.alert('Error', errorMessage || 'Failed to take photo. Please try again.');
     throw error;
   }
 };

@@ -8,23 +8,18 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { getColors } from '../../constants/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { validateEmail, validatePassword, validateName, passwordsMatch } from '../../utils/validation';
+import { validateEmail, validatePassword, validateName, passwordsMatch, validatePhone, formatPhoneInput, normalizeEmail, getFirebaseAuthErrorMessage } from '../../utils/validation';
 import { AuthStackParamList } from '../../types';
 
 type StudentSignUpNavProp = NativeStackNavigationProp<AuthStackParamList, 'StudentSignUp'>;
 
 const YEAR_OF_STUDY = ['Freshman', 'Sophomore', 'Junior', 'Senior'] as const;
-const INTERESTS = [
-    'Academic', 'Sports', 'Cultural', 'Tech', 'Arts', 'Music', 'Dance', 
-    'Photography', 'Writing', 'Volunteering', 'Entrepreneurship', 'Gaming'
-];
 
 export const StudentSignUpScreen: React.FC = () => {
     const navigation = useNavigation<StudentSignUpNavProp>();
     const { signUp, updateUserProfile } = useAuth();
-    const { isDark } = useTheme();
-    const colors = getColors(isDark);
+    // Always use light mode for sign up page
+    const colors = getColors(false);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -35,7 +30,6 @@ export const StudentSignUpScreen: React.FC = () => {
     const [major, setMajor] = useState('');
     const [graduationYear, setGraduationYear] = useState('');
     const [yearOfStudy, setYearOfStudy] = useState<string>('');
-    const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
     const [termsAccepted, setTermsAccepted] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -52,16 +46,6 @@ export const StudentSignUpScreen: React.FC = () => {
 
     const passwordStrength = getPasswordStrength(password);
 
-    
-
-    const toggleInterest = (interest: string) => {
-        setSelectedInterests(prev =>
-            prev.includes(interest)
-                ? prev.filter(i => i !== interest)
-                : [...prev, interest]
-        );
-    };
-
     const handleSignUp = async () => {
         if (!name || !email || !password || !confirmPassword || !phone || !institution || !major || !graduationYear || !yearOfStudy) {
             Alert.alert('Error', 'Please fill in all required fields');
@@ -73,8 +57,17 @@ export const StudentSignUpScreen: React.FC = () => {
             return;
         }
 
-        if (!validateEmail(email)) {
+        // Normalize email (trim and lowercase)
+        const normalizedEmail = normalizeEmail(email);
+        
+        if (!normalizedEmail || !validateEmail(normalizedEmail)) {
             Alert.alert('Error', 'Please enter a valid email address');
+            return;
+        }
+
+        // Validate phone number - must be exactly 10 digits
+        if (!validatePhone(phone)) {
+            Alert.alert('Error', 'Please enter a valid 10-digit phone number (numbers only)');
             return;
         }
 
@@ -96,18 +89,19 @@ export const StudentSignUpScreen: React.FC = () => {
 
         setLoading(true);
         try {
-            await signUp(email, password, {
-                name,
-                phone,
-                institution,
-                major,
-                graduationYear,
+            // Use normalized email for sign up
+            await signUp(normalizedEmail, password, {
+                name: name.trim(),
+                phone: phone.trim(),
+                institution: institution.trim(),
+                major: major.trim(),
+                graduationYear: graduationYear.trim(),
                 yearOfStudy: yearOfStudy as 'Freshman' | 'Sophomore' | 'Junior' | 'Senior',
-                interests: selectedInterests,
                 role: 'student',
             });
         } catch (error: any) {
-            Alert.alert('Sign Up Failed', error.message || 'Please try again');
+            const friendlyMessage = getFirebaseAuthErrorMessage(error);
+            Alert.alert('Sign Up Failed', friendlyMessage);
         } finally {
             setLoading(false);
         }
@@ -241,13 +235,19 @@ export const StudentSignUpScreen: React.FC = () => {
                             <Ionicons name="call-outline" size={20} color={colors.mutedText} style={styles.inputIcon} />
                             <TextInput
                                 style={[styles.input, { color: colors.text }]}
-                                placeholder="+1 234 567 8900"
+                                placeholder="1234567890"
                                 placeholderTextColor={colors.mutedText}
                                 value={phone}
-                                onChangeText={setPhone}
+                                onChangeText={(text) => setPhone(formatPhoneInput(text))}
                                 keyboardType="phone-pad"
+                                maxLength={10}
                             />
                         </View>
+                        {phone.length > 0 && phone.length < 10 && (
+                            <Text style={[styles.helperText, { color: colors.mutedText }]}>
+                                {10 - phone.length} digit{10 - phone.length !== 1 ? 's' : ''} remaining
+                            </Text>
+                        )}
                     </View>
 
                     <View style={styles.inputContainer}>
@@ -309,32 +309,6 @@ export const StudentSignUpScreen: React.FC = () => {
                                 >
                                     <Text style={[styles.yearButtonText, { color: yearOfStudy === year ? colors.primary : colors.text }]}>
                                         {year}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <Text style={[styles.label, { color: colors.text }]}>Interests/Hobbies</Text>
-                        <View style={styles.interestsContainer}>
-                            {INTERESTS.map((interest) => (
-                                <TouchableOpacity
-                                    key={interest}
-                                    style={[
-                                        styles.interestChip,
-                                        {
-                                            backgroundColor: selectedInterests.includes(interest) ? colors.primary + '20' : colors.card,
-                                            borderColor: selectedInterests.includes(interest) ? colors.primary : colors.border,
-                                        }
-                                    ]}
-                                    onPress={() => toggleInterest(interest)}
-                                >
-                                    <Text style={[
-                                        styles.interestChipText,
-                                        { color: selectedInterests.includes(interest) ? colors.primary : colors.text }
-                                    ]}>
-                                        {interest}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -482,21 +456,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
     },
-    interestsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-    },
-    interestChip: {
-        borderWidth: 1.5,
-        borderRadius: 20,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-    },
-    interestChipText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
     checkboxContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -541,5 +500,11 @@ const styles = StyleSheet.create({
     signInLink: {
         fontSize: 15,
         fontWeight: '700',
+    },
+    helperText: {
+        fontSize: 12,
+        marginTop: -10,
+        marginBottom: 14,
+        marginLeft: 4,
     },
 });

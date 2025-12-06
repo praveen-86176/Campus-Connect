@@ -3,6 +3,7 @@ import { Club, Event, RSVP, AttendanceRecord, AttendanceStatus, Membership } fro
 import { dataService } from '../services/dataService';
 import { useAuth } from './AuthContext';
 import { generateAttendanceId, generateMembershipId } from '../utils/idUtils';
+import { processAllPostEventNotifications } from '../services/notifications/postEventNotifications';
 
 type CampusDataContextType = {
   clubs: Club[];
@@ -42,6 +43,7 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const loadData = useCallback(async () => {
     try {
+      console.log('🔄 Loading campus data...');
       await dataService.init();
       
       // Load memberships first (may be empty, that's okay)
@@ -51,6 +53,13 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } catch (membershipError: any) {
         console.warn('⚠️ Failed to load memberships (may not have permission yet):', membershipError.message);
         // Continue without memberships - member counts will be 0
+      }
+      
+      // Run test function first to verify connection
+      try {
+        await dataService.testEventFetch();
+      } catch (testError) {
+        console.warn('⚠️ Test fetch failed, but continuing:', testError);
       }
       
       const [clubsData, eventsData, rsvpsData, attendanceData] = await Promise.all([
@@ -76,14 +85,28 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setRsvps(rsvpsData);
       setAttendance(attendanceData);
       setMemberships(membershipsData);
+      
       console.log(`✅ Loaded data: ${updatedClubs.length} clubs, ${eventsData.length} events, ${rsvpsData.length} RSVPs, ${membershipsData.length} memberships`);
+      
+      // Log events with images for debugging
+      const eventsWithImages = eventsData.filter(e => e.image && e.image.trim() !== '');
+      console.log(`📸 Events with images: ${eventsWithImages.length} out of ${eventsData.length}`);
+      eventsWithImages.forEach(e => {
+        console.log(`   - "${e.title}": ${e.image?.substring(0, 50)}...`);
+      });
+
+      // Process post-event notifications for completed events
+      // Run in background (don't block UI)
+      processAllPostEventNotifications(eventsData).catch((error) => {
+        console.error('Error processing post-event notifications:', error);
+      });
     } catch (error) {
       console.error('❌ Failed to load campus data:', error);
       // Don't throw - allow app to continue with partial data
     }
   }, []);
 
-  // Set up real-time listeners for events
+  // Set up real-time listeners for events, attendance, and RSVPs
   useEffect(() => {
     if (!loading && user) {
       // Initial load
@@ -91,14 +114,34 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // Set up real-time listener for events
       const unsubscribeEvents = dataService.subscribeToEvents((eventsData) => {
+        console.log(`📅 Real-time update: ${eventsData.length} events received`);
+        const eventsWithImages = eventsData.filter(e => e.image && e.image.trim() !== '');
+        console.log(`📸 Real-time: ${eventsWithImages.length} events with images`);
         setEvents(eventsData);
-        console.log(`📅 Real-time update: ${eventsData.length} events`);
       });
 
-      // Cleanup listener on unmount
+      // Set up real-time listener for attendance
+      const unsubscribeAttendance = dataService.subscribeToAttendance((attendanceData) => {
+        console.log(`✅ Real-time attendance update: ${attendanceData.length} records`);
+        setAttendance(attendanceData);
+      });
+
+      // Set up real-time listener for RSVPs
+      const unsubscribeRsvps = dataService.subscribeToRsvps((rsvpsData) => {
+        console.log(`📝 Real-time RSVPs update: ${rsvpsData.length} RSVPs`);
+        setRsvps(rsvpsData);
+      });
+
+      // Cleanup listeners on unmount
       return () => {
         if (unsubscribeEvents) {
           unsubscribeEvents();
+        }
+        if (unsubscribeAttendance) {
+          unsubscribeAttendance();
+        }
+        if (unsubscribeRsvps) {
+          unsubscribeRsvps();
         }
       };
     }
@@ -201,6 +244,20 @@ export const CampusDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
         // Use correct attendance ID format: `${userId}_${eventId}`
         const attendanceId = generateAttendanceId(userId, eventId);
+        const existingRecord = attendance.find(
+          (r) => generateAttendanceId(r.userId, r.eventId) === attendanceId
+        );
+
+        // Validate: Cannot check out without checking in first
+        if (!existingRecord || !existingRecord.checkInAt) {
+          throw new Error('Cannot check out without checking in first. Please check in before checking out.');
+        }
+
+        // Validate: Cannot check out if already checked out
+        if (existingRecord.checkOutAt) {
+          throw new Error('Already checked out from this event.');
+        }
+
         const updatedAttendance = attendance.map((r) => {
           const rId = generateAttendanceId(r.userId, r.eventId);
           return rId === attendanceId

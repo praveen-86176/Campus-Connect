@@ -1,15 +1,18 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { useCampusData } from '../context/CampusDataContext';
 import { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 
 type RouteProps = RouteProp<RootStackParamList, 'Certificate'>;
+type NavProps = NativeStackNavigationProp<RootStackParamList>;
 
 export const CertificateScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavProps>();
   const route = useRoute<RouteProps>();
   const { getEventById, getUserAttendanceStatus } = useCampusData();
   const { user } = useAuth();
@@ -25,6 +28,17 @@ export const CertificateScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
+        {/* Custom Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Certificate</Text>
+          <View style={{ width: 40 }} />
+        </View>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -58,6 +72,28 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginRight: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
   },
   scrollView: {
     flex: 1,

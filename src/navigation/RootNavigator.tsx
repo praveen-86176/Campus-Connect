@@ -8,11 +8,13 @@ import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { EventDetailsScreen } from '../screens/EventDetailsScreen';
 import { EventsListScreen } from '../screens/EventsListScreen';
-import { QRScannerScreen } from '../screens/QRScannerScreen';
 import { RSVPFormScreen } from '../screens/RSVPFormScreen';
+import { RSVPQRCodeScreen } from '../screens/RSVPQRCodeScreen';
 import { AttendanceReportScreen } from '../screens/AttendanceReportScreen';
 import { CertificateScreen } from '../screens/CertificateScreen';
 import { EditProfileScreen } from '../screens/EditProfileScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { QRScannerScreen } from '../screens/QRScannerScreen';
 import { MainTabs } from './MainTabs';
 import { AuthStack } from './AuthStack';
 import { AdminNavigator } from './AdminNavigator';
@@ -34,7 +36,6 @@ const linking: LinkingOptions<RootStackParamList> = {
       EventsList: 'clubs/:clubId/events',
       EventDetails: 'events/:eventId',
       RSVPForm: 'events/:eventId/rsvp',
-      QRScanner: 'qr',
       AttendanceReport: 'events/:eventId/attendance',
       Certificate: 'events/:eventId/certificate',
     },
@@ -71,28 +72,29 @@ const Navigation = () => {
         ) : (
           // User is signed in as student - show main app
           <Stack.Navigator
+            id="RootStack"
             screenOptions={{
-              headerTintColor: '#fff',
-              headerTitleStyle: { fontWeight: '700' },
-              headerBackground: () => <View style={{ flex: 1, backgroundColor: Colors.primary }} />,
+              headerShown: false,
             }}
           >
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
             <Stack.Screen
               name="EventsList"
               component={EventsListScreen}
-              options={({ route }) => ({ title: route.params.clubName ?? 'Events' })}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="EventDetails"
               component={EventDetailsScreen}
-              options={{ title: 'Event Details' }}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen name="RSVPForm" component={RSVPFormScreen} options={{ title: 'RSVP' }} />
-            <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ title: 'Scan QR' }} />
-            <Stack.Screen name="AttendanceReport" component={AttendanceReportScreen} options={{ title: 'Attendance' }} />
-            <Stack.Screen name="Certificate" component={CertificateScreen} options={{ title: 'Certificate' }} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+            <Stack.Screen name="RSVPForm" component={RSVPFormScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="RSVPQRCode" component={RSVPQRCodeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="AttendanceReport" component={AttendanceReportScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Certificate" component={CertificateScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="QRScanner" component={QRScannerScreen} options={{ headerShown: false }} />
           </Stack.Navigator>
         )
       ) : (

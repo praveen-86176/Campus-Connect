@@ -20,7 +20,10 @@
       "infoPlist": {
         "NSCameraUsageDescription": "We need access to your camera to take photos for events and profile pictures.",
         "NSPhotoLibraryUsageDescription": "We need access to your photos to upload event images and profile pictures.",
-        "NSPhotoLibraryAddUsageDescription": "We need access to save photos to your photo library."
+        "NSPhotoLibraryAddUsageDescription": "We need access to save photos to your photo library.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -36,8 +39,12 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK"
       ],
+      "useNextNotificationsApi": true,
       "package": "com.campusconnect.app"
     },
     "plugins": [
@@ -53,7 +60,15 @@
           "photosPermission": "We need access to your photos to upload event images and profile pictures.",
           "cameraPermission": "We need access to your camera to take photos for events and profile."
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ],
+      "expo-font"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

@@ -82,10 +82,42 @@ export const dataService = {
 
   async getEvents(): Promise<Event[]> {
     try {
-      const snap = await getDocs(query(collection(db, EVENTS_COLLECTION)));
-      console.log(`📅 Fetched ${snap.docs.length} events from Firestore`);
+      console.log('🔍 Fetching events for student view...');
+      console.log(`📍 Collection name: ${EVENTS_COLLECTION}`);
+      console.log(`📍 Database instance:`, db ? 'Initialized' : 'NOT INITIALIZED');
+      
+      const eventsRef = collection(db, EVENTS_COLLECTION);
+      const q = query(eventsRef);
+      const snap = await getDocs(q);
+      
+      console.log(`📅 Fetched ${snap.size} events from Firestore collection "${EVENTS_COLLECTION}"`);
+      console.log(`📍 Number of docs fetched: ${snap.size}`);
+      
+      if (snap.empty) {
+        console.warn('⚠️ No events found in Firestore collection. Check:');
+        console.warn('   1. Collection name is correct: "events"');
+        console.warn('   2. Firestore security rules allow read access');
+        console.warn('   3. Events have been created by admin');
+        return [];
+      }
+      
       const events = snap.docs.map((d) => {
         const data = d.data() as any;
+        
+        // Debug: Log raw Firestore data for ALL events
+        console.log(`📅 Fetched event: ${data.title || 'Untitled'}`, {
+          docId: d.id,
+          hasImage: !!data.image,
+          imageUrl: data.image ? data.image.substring(0, 50) + '...' : 'N/A',
+          hasTitle: !!data.title,
+          hasDate: !!data.date,
+        });
+        
+        // Handle image field more robustly - preserve valid URLs, convert null/undefined to empty string
+        const imageValue = data.image !== null && data.image !== undefined 
+          ? (typeof data.image === 'string' ? data.image : String(data.image))
+          : '';
+        
         const event = {
           id: d.id,
           clubId: data.clubId,
@@ -98,26 +130,47 @@ export const dataService = {
           category: data.category ?? '',
           capacity: data.capacity ?? 0,
           registeredCount: data.registeredCount ?? 0,
-          image: data.image || '', // Ensure image is always a string (empty if not set)
+          image: imageValue, // Preserve image URL if it exists
           status: data.status ?? 'Upcoming',
           registrationRequired: !!data.registrationRequired,
           tags: data.tags,
           eventLink: data.eventLink,
+          meetingPlatform: data.meetingPlatform || undefined,
           createdAt: (data.createdAt?.toDate?.() ?? new Date(data.createdAt ?? Date.now())) as Date,
           updatedAt: (data.updatedAt?.toDate?.() ?? new Date(data.updatedAt ?? Date.now())) as Date,
         } as Event;
         
         // Log event details for debugging
-        console.log(`📅 Event "${event.title}": image=${event.image ? 'YES (' + event.image.substring(0, 50) + '...)' : 'NO'}`);
+        if (event.image && event.image.trim() !== '') {
+          console.log(`📸 Event "${event.title}" HAS IMAGE: ${event.image.substring(0, 60)}...`);
+          console.log(`📸 Image validation:`, {
+            isString: typeof event.image === 'string',
+            hasLength: event.image.length > 0,
+            startsWithHttp: event.image.startsWith('http://') || event.image.startsWith('https://'),
+            trimmedLength: event.image.trim().length
+          });
+        } else {
+          console.log(`📸 Event "${event.title}" has NO image`);
+        }
         return event;
       });
       
       const eventsWithImages = events.filter(e => e.image && e.image.trim() !== '').length;
       const eventsWithoutImages = events.length - eventsWithImages;
+      console.log(`✅ Total events fetched for students: ${events.length}`);
       console.log(`📊 Events summary: ${events.length} total, ${eventsWithImages} with images, ${eventsWithoutImages} without images`);
+      
+      // Log all event IDs for debugging
+      console.log(`📋 Event IDs:`, events.map(e => e.id));
       
       return events;
     } catch (error: any) {
+      console.error('❌ Error fetching student events:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack?.substring(0, 200)
+      });
       logFirebaseError(error, 'getEvents', { collection: EVENTS_COLLECTION });
       throw new Error(handleFirebaseError(error, 'getEvents'));
     }
@@ -132,6 +185,10 @@ export const dataService = {
       return onSnapshot(q, (snap) => {
         const eventsData = snap.docs.map((d) => {
           const data = d.data() as any;
+          // Handle image field more robustly - preserve valid URLs, convert null/undefined to empty string
+          const imageValue = data.image !== null && data.image !== undefined 
+            ? (typeof data.image === 'string' ? data.image : String(data.image))
+            : '';
           const event = {
             id: d.id,
             clubId: data.clubId,
@@ -144,18 +201,20 @@ export const dataService = {
             category: data.category ?? '',
             capacity: data.capacity ?? 0,
             registeredCount: data.registeredCount ?? 0,
-            image: data.image || '', // Ensure image is always a string (empty if not set)
-            status: data.status ?? 'Upcoming',
-            registrationRequired: !!data.registrationRequired,
-            tags: data.tags,
-            eventLink: data.eventLink,
-            createdAt: (data.createdAt?.toDate?.() ?? new Date(data.createdAt ?? Date.now())) as Date,
-            updatedAt: (data.updatedAt?.toDate?.() ?? new Date(data.updatedAt ?? Date.now())) as Date,
+          image: imageValue, // Preserve image URL if it exists
+          status: data.status ?? 'Upcoming',
+          registrationRequired: !!data.registrationRequired,
+          tags: data.tags,
+          eventLink: data.eventLink,
+          meetingPlatform: data.meetingPlatform || undefined,
+          createdAt: (data.createdAt?.toDate?.() ?? new Date(data.createdAt ?? Date.now())) as Date,
+          updatedAt: (data.updatedAt?.toDate?.() ?? new Date(data.updatedAt ?? Date.now())) as Date,
           } as Event;
           
           // Log event details for debugging
           if (event.image && event.image.trim() !== '') {
             console.log(`📅 Real-time Event "${event.title}": HAS IMAGE (${event.image.substring(0, 50)}...)`);
+            console.log(`📸 Full image URL for "${event.title}": ${event.image}`);
           }
           return event;
         });
@@ -172,6 +231,70 @@ export const dataService = {
       console.error('❌ Failed to set up events listener:', error);
       logFirebaseError(error, 'subscribeToEvents', { collection: EVENTS_COLLECTION });
       // Return a no-op function if subscription fails
+      return () => {};
+    }
+  },
+
+  // Real-time listener for attendance
+  subscribeToAttendance(callback: (attendance: AttendanceRecord[]) => void): Unsubscribe {
+    try {
+      const attendanceRef = collection(db, ATTENDANCE_COLLECTION);
+      const q = query(attendanceRef);
+      
+      return onSnapshot(q, (snap) => {
+        const attendanceData = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            eventId: data.eventId,
+            userId: data.userId,
+            checkInAt: data.checkInAt,
+            checkOutAt: data.checkOutAt,
+          } as AttendanceRecord;
+        });
+        
+        console.log(`📊 Real-time attendance update: ${attendanceData.length} records`);
+        callback(attendanceData);
+      }, (error) => {
+        console.error('❌ Real-time attendance listener error:', error);
+        logFirebaseError(error, 'subscribeToAttendance', { collection: ATTENDANCE_COLLECTION });
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to set up attendance listener:', error);
+      logFirebaseError(error, 'subscribeToAttendance', { collection: ATTENDANCE_COLLECTION });
+      return () => {};
+    }
+  },
+
+  // Real-time listener for RSVPs
+  subscribeToRsvps(callback: (rsvps: RSVP[]) => void): Unsubscribe {
+    try {
+      const rsvpsRef = collection(db, RSVPS_COLLECTION);
+      const q = query(rsvpsRef);
+      
+      return onSnapshot(q, (snap) => {
+        const rsvpsData = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            userId: data.userId,
+            eventId: data.eventId,
+            userName: data.userName,
+            email: data.email,
+            phone: data.phone,
+            timestamp: data.timestamp,
+            attended: !!data.attended,
+          } as RSVP;
+        });
+        
+        console.log(`📊 Real-time RSVPs update: ${rsvpsData.length} RSVPs`);
+        callback(rsvpsData);
+      }, (error) => {
+        console.error('❌ Real-time RSVPs listener error:', error);
+        logFirebaseError(error, 'subscribeToRsvps', { collection: RSVPS_COLLECTION });
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to set up RSVPs listener:', error);
+      logFirebaseError(error, 'subscribeToRsvps', { collection: RSVPS_COLLECTION });
       return () => {};
     }
   },
@@ -196,6 +319,7 @@ export const dataService = {
         registrationRequired: event.registrationRequired || false,
         tags: event.tags || null,
         eventLink: event.eventLink || null,
+        meetingPlatform: event.meetingPlatform || null,
         createdAt: event.createdAt instanceof Date 
           ? Timestamp.fromDate(event.createdAt) 
           : Timestamp.now(),
@@ -205,14 +329,19 @@ export const dataService = {
       };
       
       // Always include image field (even if empty) for consistency
-      eventData.image = event.image && event.image.trim() !== '' ? event.image : '';
+      // Ensure image is a string, not null or undefined
+      const imageToSave = event.image && typeof event.image === 'string' && event.image.trim() !== '' 
+        ? event.image.trim() 
+        : '';
+      eventData.image = imageToSave;
       
       await setDoc(ref, eventData, { merge: true });
       console.log(`✅ Event saved to Firestore: ${event.title} (ID: ${event.id})`);
       if (eventData.image) {
         console.log(`📸 Event image URL saved: ${eventData.image}`);
+        console.log(`📸 Image field type: ${typeof eventData.image}, length: ${eventData.image.length}`);
       } else {
-        console.log(`📸 Event created without image`);
+        console.log(`📸 Event created without image (image field set to empty string)`);
       }
     } catch (error: any) {
       console.error('❌ Failed to save event:', error);
@@ -375,6 +504,40 @@ export const dataService = {
     } catch (error: any) {
       logFirebaseError(error, `testConnection (${collectionName}/${docId})`);
       throw error;
+    }
+  },
+
+  // Test function to verify event fetching
+  async testEventFetch(): Promise<void> {
+    try {
+      console.log('🧪 TEST: Starting event fetch test...');
+      const eventsRef = collection(db, EVENTS_COLLECTION);
+      const snapshot = await getDocs(eventsRef);
+      
+      console.log('🧪 TEST: Total docs in events collection:', snapshot.size);
+      
+      if (snapshot.empty) {
+        console.log('🧪 TEST: ⚠️ No events found in collection');
+        console.log('🧪 TEST: Check Firestore rules and collection name');
+        return;
+      }
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        console.log('🧪 TEST Event:', {
+          id: doc.id,
+          name: data.title || data.name || 'Untitled',
+          hasImage: !!data.image,
+          imageUrl: data.image ? data.image.substring(0, 50) + '...' : 'N/A',
+          date: data.date,
+          location: data.location,
+        });
+      });
+      
+      console.log('🧪 TEST: ✅ Event fetch test completed');
+    } catch (error: any) {
+      console.log('🧪 TEST Error:', error.message);
+      console.log('🧪 TEST Error Code:', error.code);
     }
   },
 };

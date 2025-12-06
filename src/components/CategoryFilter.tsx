@@ -1,23 +1,45 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { getColors } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
+import { useCampusData } from '../context/CampusDataContext';
 
-type Category = 'All Events' | 'Tech' | 'Cultural' | 'Sports' | 'Arts';
-
-const categories: Category[] = ['All Events', 'Tech', 'Cultural', 'Sports', 'Arts'];
+type Category = string; // Can be 'All Events' or any club category
 
 type Props = {
+    selectedCategory?: Category;
     onCategoryChange?: (category: Category) => void;
 };
 
-export const CategoryFilter: React.FC<Props> = ({ onCategoryChange }) => {
-    const [selectedCategory, setSelectedCategory] = useState<Category>('All Events');
+export const CategoryFilter: React.FC<Props> = ({ selectedCategory: controlledCategory, onCategoryChange }) => {
+    const [internalSelectedCategory, setInternalSelectedCategory] = useState<Category>('All Events');
     const { isDark } = useTheme();
     const colors = getColors(isDark);
+    const { clubs } = useCampusData();
+    
+    // Use controlled category if provided, otherwise use internal state
+    const selectedCategory = controlledCategory !== undefined ? controlledCategory : internalSelectedCategory;
+    
+    // Get all unique club categories dynamically
+    const categories = useMemo(() => {
+        const uniqueCategories = new Set<string>();
+        clubs.forEach(club => {
+            if (club.category && club.category.trim() !== '') {
+                uniqueCategories.add(club.category);
+            }
+        });
+        
+        // Convert to array and sort alphabetically
+        const categoryArray = Array.from(uniqueCategories).sort();
+        
+        // Always include "All Events" as the first option
+        return ['All Events', ...categoryArray];
+    }, [clubs]);
 
     const handlePress = (category: Category) => {
-        setSelectedCategory(category);
+        if (controlledCategory === undefined) {
+            setInternalSelectedCategory(category);
+        }
         onCategoryChange?.(category);
     };
 

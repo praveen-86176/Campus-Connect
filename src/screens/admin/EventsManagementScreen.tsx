@@ -10,11 +10,13 @@ import { useTheme } from '../../context/ThemeContext';
 import { useCampusData } from '../../context/CampusDataContext';
 import { Event } from '../../types';
 
-type EventsNavProp = NativeStackNavigationProp<any>;
+import { AdminStackParamList } from '../../navigation/types';
+
+type EventsNavProp = NativeStackNavigationProp<AdminStackParamList>;
 
 export const EventsManagementScreen: React.FC = () => {
   const navigation = useNavigation<EventsNavProp>();
-  const { events, rsvps, refreshData } = useCampusData();
+  const { events, rsvps, attendance, refreshData, getEventAttendanceAnalytics } = useCampusData();
   const { isDark } = useTheme();
   const colors = getColors(isDark);
   
@@ -59,6 +61,10 @@ export const EventsManagementScreen: React.FC = () => {
 
   const getEventRsvpCount = (eventId: string) => {
     return rsvps.filter(r => r.eventId === eventId).length;
+  };
+
+  const getEventAttendanceCount = (eventId: string) => {
+    return attendance.filter(a => a.eventId === eventId && a.checkInAt).length;
   };
 
   const stats = useMemo(() => {
@@ -254,6 +260,8 @@ export const EventsManagementScreen: React.FC = () => {
         ) : (
           filteredEvents.map((event) => {
             const rsvpCount = getEventRsvpCount(event.id);
+            const attendanceCount = getEventAttendanceCount(event.id);
+            const analytics = getEventAttendanceAnalytics(event.id);
             const eventDate = new Date(event.date);
             const isPast = eventDate < new Date();
             
@@ -332,6 +340,14 @@ export const EventsManagementScreen: React.FC = () => {
                       <Text style={[styles.rsvpCount, { color: colors.text }]}>
                         {rsvpCount} RSVP{rsvpCount !== 1 ? 's' : ''}
                       </Text>
+                      {attendanceCount > 0 && (
+                        <View style={styles.attendanceBadge}>
+                          <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                          <Text style={[styles.attendanceText, { color: '#10B981' }]}>
+                            {attendanceCount} attended
+                          </Text>
+                        </View>
+                      )}
                       {event.capacity > 0 && (
                         <Text style={[styles.capacityText, { color: colors.mutedText }]}>
                           / {event.capacity} capacity
@@ -547,6 +563,16 @@ const styles = StyleSheet.create({
   },
   capacityText: {
     fontSize: 13,
+  },
+  attendanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+  },
+  attendanceText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyState: {
     borderRadius: 16,

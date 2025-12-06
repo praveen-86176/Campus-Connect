@@ -11,8 +11,11 @@ import { useCampusData } from '../../context/CampusDataContext';
 import { Club } from '../../types';
 import { adminService } from '../../services/adminService';
 import { pickAndUploadImage, takePhotoAndUpload } from '../../services/cloudinaryService';
+import { notifyNewClub } from '../../services/notifications/notificationService';
 
-type CreateClubNavProp = NativeStackNavigationProp<any>;
+import { AdminStackParamList } from '../../navigation/types';
+
+type CreateClubNavProp = NativeStackNavigationProp<AdminStackParamList, 'CreateClub'>;
 
 const categories = ['Tech', 'Cultural', 'Sports', 'Arts', 'Academic', 'Social', 'Other'];
 
@@ -28,9 +31,6 @@ export const CreateClubScreen: React.FC = () => {
   const [category, setCategory] = useState('Tech');
   const [contactPerson, setContactPerson] = useState('');
   const [contactEmail, setContactEmail] = useState('');
-  const [meetingLocation, setMeetingLocation] = useState('');
-  const [meetingTime, setMeetingTime] = useState('');
-  const [rules, setRules] = useState('');
   const [logo, setLogo] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,9 +66,6 @@ export const CreateClubScreen: React.FC = () => {
         category: category,
         contactPerson: contactPerson.trim() || undefined,
         contactEmail: contactEmail.trim() || undefined,
-        meetingLocation: meetingLocation.trim() || undefined,
-        meetingTime: meetingTime.trim() || undefined,
-        rules: rules.trim() || undefined,
         adminId: user.uid,
         memberCount: 0,
         isVerified: true,
@@ -78,6 +75,14 @@ export const CreateClubScreen: React.FC = () => {
 
       await adminService.createClub(newClub);
       await refreshData();
+      
+      // Send notifications to all students about the new club
+      try {
+        await notifyNewClub(newClub.id, newClub.name);
+      } catch (notifError) {
+        console.error('Error sending notifications:', notifError);
+        // Don't fail the club creation if notifications fail
+      }
       
       Alert.alert('Success', 'Club created successfully!', [
         { text: 'OK', onPress: () => navigation.goBack() }
@@ -290,50 +295,6 @@ export const CreateClubScreen: React.FC = () => {
             autoCapitalize="none"
             maxLength={100}
           />
-        </View>
-
-        {/* Meeting Location */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Meeting Location</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="Where does the club meet? (optional)"
-            placeholderTextColor={colors.mutedText}
-            value={meetingLocation}
-            onChangeText={setMeetingLocation}
-            maxLength={200}
-          />
-        </View>
-
-        {/* Meeting Time */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Meeting Time</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="e.g., Every Monday 6:00 PM (optional)"
-            placeholderTextColor={colors.mutedText}
-            value={meetingTime}
-            onChangeText={setMeetingTime}
-            maxLength={100}
-          />
-        </View>
-
-        {/* Rules */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>Club Rules</Text>
-          <TextInput
-            style={[styles.textArea, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="Club rules and guidelines (optional)"
-            placeholderTextColor={colors.mutedText}
-            value={rules}
-            onChangeText={setRules}
-            multiline
-            numberOfLines={3}
-            maxLength={1000}
-          />
-          <Text style={[styles.charCount, { color: colors.mutedText }]}>
-            {rules.length}/1000
-          </Text>
         </View>
 
         {/* Submit Button */}
