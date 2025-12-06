@@ -41,7 +41,9 @@ yarn-error.*
 
 # Credentials and secrets
 src/constants/creds.tsx
+src/constants/creds.ts
 **/creds.tsx
+**/creds.ts
 **/*credentials*
 **/*secrets*
 **/*api-keys*
