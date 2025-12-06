@@ -1,0 +1,34 @@
+{
+    "common": {
+        "loading": "Loading...",
+        "error": "Error",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "share": "Share",
+        "signOut": "Sign Out"
+    },
+    "auth": {
+        "signIn": "Sign In",
+        "signUp": "Sign Up",
+        "email": "Email",
+        "password": "Password",
+        "forgotPassword": "Forgot Password?"
+    },
+    "events": {
+        "title": "Events",
+        "upcoming": "Upcoming Events",
+        "past": "Past Events",
+        "create": "Create Event",
+        "details": "Event Details",
+        "rsvp": "RSVP",
+        "attend": "Attend",
+        "scanQr": "Scan QR"
+    },
+    "admin": {
+        "dashboard": "Admin Dashboard",
+        "createEvent": "Create New Event",
+        "editEvent": "Edit Event"
+    }
+}

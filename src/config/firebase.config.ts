@@ -5,25 +5,17 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import {
-    EXPO_PUBLIC_FIREBASE_API_KEY,
-    EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    EXPO_PUBLIC_FIREBASE_APP_ID,
-    EXPO_PUBLIC_FIREBASE_IOS_APP_ID,
-} from '../constants/creds';
+import { CREDS } from '../constants/creds';
 
 const firebaseConfig = {
-    apiKey: EXPO_PUBLIC_FIREBASE_API_KEY,
-    authDomain: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    apiKey: CREDS.FIREBASE_KEY,
+    authDomain: CREDS.FIREBASE_AUTH_DOMAIN,
+    projectId: CREDS.FIREBASE_PROJECT_ID,
+    storageBucket: CREDS.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: CREDS.FIREBASE_MESSAGING_SENDER_ID,
     appId: Platform.select({
-        ios: EXPO_PUBLIC_FIREBASE_IOS_APP_ID,
-        default: EXPO_PUBLIC_FIREBASE_APP_ID,
+        ios: CREDS.FIREBASE_IOS_APP_ID,
+        default: CREDS.FIREBASE_APP_ID,
     })
 };
 
